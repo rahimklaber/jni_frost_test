@@ -1,0 +1,28 @@
+[package]
+name = "rust_code"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "mobcore"
+crate-type = ["cdylib"]
+
+[dependencies]
+dkg = {git="https://github.com/vrx00/serai", branch="bitcoin-processor"}
+modular-frost = {git="https://github.com/vrx00/serai", branch="bitcoin-processor", features= ["secp256k1"]}
+bitcoin-serai = {git="https://github.com/vrx00/serai", branch="bitcoin-processor"}
+rand = "0.8.5"
+group = "0.12"
+k256 = { version = "0.11", features = ["arithmetic", "keccak256", "ecdsa"] }
+secp256k1 = {version = "0.24.1", features = ["global-context", "rand-std"] }
+sha2 = { version = "0.10" }
+
+
+rifgen = "0.1.61"
+jni-sys = "0.3.0"
+log = "0.4.6"
+log-panics = "2.0"
+
+[build-dependencies]
+rifgen = "0.1.61"
+flapigen = "0.6.0-pre9"
