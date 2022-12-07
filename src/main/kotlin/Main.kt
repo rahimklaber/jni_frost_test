@@ -84,14 +84,14 @@ suspend fun main(args: Array<String>) = withContext(Dispatchers.Default){
 //        return
     }
 
-    val amount = 1000
-    val threshold = 500
+    val amount = 2
+    val threshold = 1
 
     val inputChannels = mutableListOf<Channel<SchnorrAgentMessage>>()
     val outputChannel = Channel<SchnorrAgentOutput>()
     val jobs = IntRange(1,amount)
         .map  {
-            val channel = Channel<SchnorrAgentMessage>(amount)
+            val channel = Channel<SchnorrAgentMessage>()
             inputChannels.add(channel)
             SchnorrAgent(amount,it,threshold, channel, outputChannel)
         }
@@ -101,20 +101,24 @@ suspend fun main(args: Array<String>) = withContext(Dispatchers.Default){
         when(msg){
             is SchnorrAgentOutput.DkgShare -> {
                 val (bytes, fromIndex ,forIndex) = msg
-//                println("$fromIndex sending dkgshare to $forIndex")
-                inputChannels[forIndex-1].send(SchnorrAgentMessage.DkgShare(bytes, fromIndex))
+                println("$fromIndex sending dkgshare to $forIndex")
+                launch{
+                    inputChannels[forIndex-1].send(SchnorrAgentMessage.DkgShare(bytes, fromIndex))
+                }
             }
             is SchnorrAgentOutput.KeyCommitment -> {
                 val (bytes, from) = msg
                 inputChannels.forEachIndexed {index, it ->
                     if (from == index+1)
                         return@forEachIndexed
-//                    println("$from sending keycommitment to ${index + 1}")
-                    it.send(SchnorrAgentMessage.KeyCommitment(bytes,from))
+                    println("$from sending keycommitment to ${index + 1}")
+                    launch{
+                        it.send(SchnorrAgentMessage.KeyCommitment(bytes,from))
+                    }
                 }
             }
             is SchnorrAgentOutput.Done -> {
-//                println("agent ${msg.index} is done ")
+                println("agent ${msg.index} is done ")
                 donecount++
                 if (donecount == amount - 1)
                     println("keyGen done!")
