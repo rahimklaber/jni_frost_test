@@ -1,12 +1,10 @@
 import generated.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.channels.produce
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
 
 fun ByteArray.toHex(): String = joinToString(separator = "") { eachByte -> "%02x".format(eachByte) }
 
@@ -33,18 +31,40 @@ suspend fun CoroutineScope.SchnorrAgent(amount: Int, index: Int, threshold: Int,
     key_gen_machine = ResultKeygen1.get_keygen(res_key_1)
 
     outputChannel.send(SchnorrAgentOutput.KeyCommitment(commitment, index))
-
-
-    // receive commitments
     val param_keygen_2 = ParamsKeygen2()
-    var count = 0
+    val params_keygen_3 = ParamsKeygen3()
 
-    while (count < amount - 1){
-        val (bytes, from) = receiveChannel.receive() as SchnorrAgentMessage.KeyCommitment
+    var mutex = Mutex(true)
 
-        param_keygen_2.add_commitment_from_user(from, bytes)
-        count++
+    launch {
+        var keycommitmentReceived = 0
+        var dkgSharesReceived = 0
+        for (msg in receiveChannel){
+            when(msg){
+                is SchnorrAgentMessage.DkgShare -> {
+                    val (bytes, from) = msg
+
+                    params_keygen_3.add_share_from_user(from,bytes)
+
+                    dkgSharesReceived++
+                    if (dkgSharesReceived == amount - 1)
+                        mutex.unlock()
+                }
+                is SchnorrAgentMessage.KeyCommitment -> {
+                    val (bytes, from) = msg
+
+                    param_keygen_2.add_commitment_from_user(from, bytes)
+
+                    keycommitmentReceived++
+                    if (keycommitmentReceived == amount - 1)
+                        mutex.unlock()
+                }
+            }
+        }
     }
+
+    //use mutex as a semaphore?? basically to signal that we have enough commitments
+    mutex.lock()
 
     // create key share for others ????
     val res_key_2 = SchnorrKeyGenWrapper.key_gen_2_generate_shares(key_gen_machine,param_keygen_2)
@@ -55,17 +75,7 @@ suspend fun CoroutineScope.SchnorrAgent(amount: Int, index: Int, threshold: Int,
 
     key_gen_machine = ResultKeygen2.get_keygen(res_key_2)
 
-    //receive shares
-    val params_keygen_3 = ParamsKeygen3()
-    count = 0
-
-    while (count < amount - 1){
-        val (bytes, from) = receiveChannel.receive() as SchnorrAgentMessage.DkgShare
-
-        params_keygen_3.add_share_from_user(from,bytes)
-        count++
-    }
-
+    mutex.lock()
     val keyWrapper = SchnorrKeyGenWrapper.key_gen_3_complete(key_gen_machine,params_keygen_3)
 
     outputChannel.send(SchnorrAgentOutput.Done(index))
@@ -76,7 +86,7 @@ suspend fun CoroutineScope.SchnorrAgent(amount: Int, index: Int, threshold: Int,
 
 suspend fun main(args: Array<String>) = withContext(Dispatchers.Default){
     try {
-        System.load("C:\\Users\\rahim\\Desktop\\thesis\\jna_frost_test\\src\\main\\resources\\mobcore.dll")
+        System.load("C:\\Users\\Rahim\\Desktop\\jni_frost_test\\src\\main\\\\resources\\mobcore.dll")
 
     } catch (e: UnsatisfiedLinkError) {
         println(e)
@@ -84,7 +94,7 @@ suspend fun main(args: Array<String>) = withContext(Dispatchers.Default){
 //        return
     }
 
-    val amount = 2
+    val amount = 5000
     val threshold = 1
 
     val inputChannels = mutableListOf<Channel<SchnorrAgentMessage>>()
@@ -101,24 +111,25 @@ suspend fun main(args: Array<String>) = withContext(Dispatchers.Default){
         when(msg){
             is SchnorrAgentOutput.DkgShare -> {
                 val (bytes, fromIndex ,forIndex) = msg
-                println("$fromIndex sending dkgshare to $forIndex")
+//                println("$fromIndex sending dkgshare to $forIndex")
                 launch{
                     inputChannels[forIndex-1].send(SchnorrAgentMessage.DkgShare(bytes, fromIndex))
                 }
             }
             is SchnorrAgentOutput.KeyCommitment -> {
                 val (bytes, from) = msg
-                inputChannels.forEachIndexed {index, it ->
+                val sendCommitmentJobs = inputChannels.mapIndexed {index, it ->
                     if (from == index+1)
-                        return@forEachIndexed
-                    println("$from sending keycommitment to ${index + 1}")
+                        return@mapIndexed
+//                    println("$from sending keycommitment to ${index + 1}")
                     launch{
                         it.send(SchnorrAgentMessage.KeyCommitment(bytes,from))
                     }
                 }
+
             }
             is SchnorrAgentOutput.Done -> {
-                println("agent ${msg.index} is done ")
+//                println("agent ${msg.index} is done ")
                 donecount++
                 if (donecount == amount - 1)
                     println("keyGen done!")
