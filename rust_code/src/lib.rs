@@ -266,7 +266,7 @@ impl ResultKeygen2 {
 
 impl SchnorrKeyGenWrapper{
     fn new(threshold: u16, n: u16, index: u16, context: String) -> SchnorrKeyGenWrapper {
-        println!("rip {:?}{:?}{:?}", threshold, n, index);
+        // println!("rip {:?}{:?}{:?}", threshold, n, index);
         let key_params = ThresholdParams::new(threshold,n,index).unwrap();
         SchnorrKeyGenWrapper{
             key_params: key_params,

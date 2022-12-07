@@ -14,6 +14,7 @@ repositories {
 
 
 dependencies {
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4")
     testImplementation(kotlin("test"))
     implementation("org.bitcoinj:bitcoinj-core:0.16.1")
     implementation("net.java.dev.jna:jna:5.12.1")
