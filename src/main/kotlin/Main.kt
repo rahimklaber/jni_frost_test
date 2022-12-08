@@ -159,7 +159,7 @@ suspend fun CoroutineScope.SchnorrAgent(amount: Int, index: Int, threshold: Int,
 
 suspend fun main(args: Array<String>) = withContext(Dispatchers.Default){
     try {
-        System.load("C:\\Users\\rahim\\Desktop\\thesis\\jna_frost_test\\src\\main\\resources\\mobcore.dll")
+        System.load("C:\\Users\\Rahim\\Desktop\\jni_frost_test\\src\\main\\resources\\mobcore.dll")
 
     } catch (e: UnsatisfiedLinkError) {
         println(e)
@@ -167,8 +167,10 @@ suspend fun main(args: Array<String>) = withContext(Dispatchers.Default){
 //        return
     }
 
-    val amount = 10
-    val threshold = 2
+    val amount = 500
+    val threshold = 250
+
+    val startTime = System.currentTimeMillis()
 
     val inputChannels = mutableListOf<Channel<SchnorrAgentMessage>>()
     val outputChannel = Channel<SchnorrAgentOutput>()
@@ -180,55 +182,59 @@ suspend fun main(args: Array<String>) = withContext(Dispatchers.Default){
         }
 
     var donecount = 0
-    for(msg in outputChannel){
-        when(msg){
-            is SchnorrAgentOutput.DkgShare -> {
-                val (bytes, fromIndex ,forIndex) = msg
+    repeat(10){
+        for(msg in outputChannel){
+            when(msg){
+                is SchnorrAgentOutput.DkgShare -> {
+                    val (bytes, fromIndex ,forIndex) = msg
 //                println("$fromIndex sending dkgshare to $forIndex")
-                launch{
-                    inputChannels[forIndex-1].send(SchnorrAgentMessage.DkgShare(bytes, fromIndex))
-                }
-            }
-            is SchnorrAgentOutput.KeyCommitment -> {
-                val (bytes, from) = msg
-                val sendCommitmentJobs = inputChannels.mapIndexed {index, it ->
-                    if (from == index+1)
-                        return@mapIndexed
-//                    println("$from sending keycommitment to ${index + 1}")
                     launch{
-                        it.send(SchnorrAgentMessage.KeyCommitment(bytes,from))
+                        inputChannels[forIndex-1].send(SchnorrAgentMessage.DkgShare(bytes, fromIndex))
                     }
                 }
+                is SchnorrAgentOutput.KeyCommitment -> {
+                    val (bytes, from) = msg
+                    val sendCommitmentJobs = inputChannels.mapIndexed {index, it ->
+                        if (from == index+1)
+                            return@mapIndexed
+//                    println("$from sending keycommitment to ${index + 1}")
+                        launch{
+                            it.send(SchnorrAgentMessage.KeyCommitment(bytes,from))
+                        }
+                    }
 
-            }
-            is SchnorrAgentOutput.KeyGenDone -> {
+                }
+                is SchnorrAgentOutput.KeyGenDone -> {
 //                println("agent ${msg.index} is done ")
-                donecount++
-                if (donecount == amount - 1)
-                    println("keyGen done!")
-            }
+                    donecount++
+                    if (donecount == amount - 1)
+                        println("keyGen done!")
+                }
 
-            is SchnorrAgentOutput.SignPreprocess -> {
-                val (_,from) = msg
-                inputChannels.take(threshold).forEachIndexed {index, channel ->
-                    if (from == index+1)
-                        return@forEachIndexed
-                    launch {
-                        channel.send(msg)
+                is SchnorrAgentOutput.SignPreprocess -> {
+                    val (_,from) = msg
+                    inputChannels.take(threshold).forEachIndexed {index, channel ->
+                        if (from == index+1)
+                            return@forEachIndexed
+                        launch {
+                            channel.send(msg)
+                        }
                     }
                 }
-            }
 
-            is SchnorrAgentOutput.SignShare -> {
-                if (msg.fromIndex == 1)
-                    continue
-                inputChannels.first().send(msg)
-            }
+                is SchnorrAgentOutput.SignShare -> {
+                    if (msg.fromIndex == 1)
+                        continue
+                    inputChannels.first().send(msg)
+                }
 
-            is SchnorrAgentOutput.Signature -> {
-                val (sigBytes) = msg
+                is SchnorrAgentOutput.Signature -> {
+                    val (sigBytes) = msg
 
-                println("signing complete\n Signature: ${sigBytes.toHex()}")
+                    println("signing complete\n Signature: ${sigBytes.toHex()}")
+
+                    println("took ${System.currentTimeMillis() - startTime} ms")
+                }
             }
         }
     }
