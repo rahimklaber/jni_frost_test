@@ -3,7 +3,6 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.SendChannel
-import kotlinx.coroutines.channels.produce
 import kotlinx.coroutines.sync.Mutex
 
 fun ByteArray.toHex(): String = joinToString(separator = "") { eachByte -> "%02x".format(eachByte) }
@@ -11,6 +10,7 @@ fun ByteArray.toHex(): String = joinToString(separator = "") { eachByte -> "%02x
 sealed interface SchnorrAgentMessage{
     data class KeyCommitment(val commitment: ByteArray, val fromIndex: Int) : SchnorrAgentMessage
     data class DkgShare(val share: ByteArray, val fromIndex: Int) : SchnorrAgentMessage
+
 }
 
 sealed interface SchnorrAgentOutput{
@@ -19,11 +19,17 @@ sealed interface SchnorrAgentOutput{
 
     data class DkgShare(val share: ByteArray, val fromIndex: Int, val forIndex: Int) : SchnorrAgentOutput
 
-    data class Done(val index: Int): SchnorrAgentOutput
+    data class KeyGenDone(val index: Int): SchnorrAgentOutput
+
+    data class SignPreprocess(val preprocess: ByteArray, val fromIndex: Int) : SchnorrAgentOutput, SchnorrAgentMessage
+
+    data class SignShare(val share:ByteArray, val fromIndex: Int): SchnorrAgentOutput, SchnorrAgentMessage
+
+    data class Signature(val signature : ByteArray) : SchnorrAgentOutput
 }
 
 
-suspend fun CoroutineScope.SchnorrAgent(amount: Int, index: Int, threshold: Int,receiveChannel : ReceiveChannel<SchnorrAgentMessage>, outputChannel : SendChannel<SchnorrAgentOutput>) = launch {
+suspend fun CoroutineScope.SchnorrAgent(amount: Int, index: Int, threshold: Int, receiveChannel : ReceiveChannel<SchnorrAgentMessage>, outputChannel : SendChannel<SchnorrAgentOutput>, msgToSing : ByteArray = byteArrayOf(1,2,3,)) = launch {
     var key_gen_machine = SchnorrKeyGenWrapper(threshold, amount, index, "test")
     // create commitment
     val res_key_1 = SchnorrKeyGenWrapper.key_gen_1_create_commitments(key_gen_machine)
@@ -31,32 +37,48 @@ suspend fun CoroutineScope.SchnorrAgent(amount: Int, index: Int, threshold: Int,
     key_gen_machine = ResultKeygen1.get_keygen(res_key_1)
 
     outputChannel.send(SchnorrAgentOutput.KeyCommitment(commitment, index))
-    val param_keygen_2 = ParamsKeygen2()
-    val params_keygen_3 = ParamsKeygen3()
-
-    var mutex = Mutex(true)
+    val param_keygen_2_msgs = mutableListOf<SchnorrAgentMessage.KeyCommitment>()
+    val param_keygen_3_msgs = mutableListOf<SchnorrAgentMessage.DkgShare>()
+    val param_sign_2_msgs = mutableListOf<SchnorrAgentOutput.SignPreprocess>()
+    val param_sign_3_msgs = mutableListOf<SchnorrAgentOutput.SignShare>()
+    val mutex = Mutex(true)
 
     launch {
         var keycommitmentReceived = 0
         var dkgSharesReceived = 0
+        var preprocessReceived = 0
+        var signSharesReceived = 0
         for (msg in receiveChannel){
             when(msg){
                 is SchnorrAgentMessage.DkgShare -> {
-                    val (bytes, from) = msg
-
-                    params_keygen_3.add_share_from_user(from,bytes)
+                    param_keygen_3_msgs.add(msg)
 
                     dkgSharesReceived++
                     if (dkgSharesReceived == amount - 1)
                         mutex.unlock()
                 }
                 is SchnorrAgentMessage.KeyCommitment -> {
-                    val (bytes, from) = msg
-
-                    param_keygen_2.add_commitment_from_user(from, bytes)
+                    param_keygen_2_msgs.add(msg)
 
                     keycommitmentReceived++
                     if (keycommitmentReceived == amount - 1)
+                        mutex.unlock()
+                }
+
+                is SchnorrAgentOutput.SignPreprocess -> {
+
+                    param_sign_2_msgs.add(msg)
+
+                    preprocessReceived++
+                    if (preprocessReceived == threshold - 1)
+                        mutex.unlock()
+                }
+
+                is SchnorrAgentOutput.SignShare -> {
+                    param_sign_3_msgs.add(msg)
+
+                    signSharesReceived++
+                    if (signSharesReceived == threshold-1)
                         mutex.unlock()
                 }
             }
@@ -65,6 +87,12 @@ suspend fun CoroutineScope.SchnorrAgent(amount: Int, index: Int, threshold: Int,
 
     //use mutex as a semaphore?? basically to signal that we have enough commitments
     mutex.lock()
+    val param_keygen_2 = ParamsKeygen2()
+
+    param_keygen_2_msgs.forEach {
+        val (bytes,from) = it
+        param_keygen_2.add_commitment_from_user(from,bytes)
+    }
 
     // create key share for others ????
     val res_key_2 = SchnorrKeyGenWrapper.key_gen_2_generate_shares(key_gen_machine,param_keygen_2)
@@ -76,11 +104,56 @@ suspend fun CoroutineScope.SchnorrAgent(amount: Int, index: Int, threshold: Int,
     key_gen_machine = ResultKeygen2.get_keygen(res_key_2)
 
     mutex.lock()
+    val params_keygen_3 = ParamsKeygen3()
+
+    param_keygen_3_msgs.forEach {
+        val (bytes,from) = it
+
+        params_keygen_3.add_share_from_user(from,bytes)
+    }
+
     val keyWrapper = SchnorrKeyGenWrapper.key_gen_3_complete(key_gen_machine,params_keygen_3)
 
-    outputChannel.send(SchnorrAgentOutput.Done(index))
+    outputChannel.send(SchnorrAgentOutput.KeyGenDone(index))
 
+    // choose 1..theshold to participate in signing
+    if(index> threshold)
+        return@launch
 
+    var signWrapper = SchnorrSignWrapper.new_instance_for_signing(keyWrapper)
+
+    // preprocess step
+    val res_sign_1 = SchnorrSignWrapper.sign_1_preprocess(signWrapper)
+    val preprocess_commitment = res_sign_1._preprocess
+    signWrapper = SignResult1.get_wrapper(res_sign_1)
+
+    outputChannel.send(SchnorrAgentOutput.SignPreprocess(preprocess_commitment,index))
+
+    mutex.lock()
+    val params_sign_2 = SignParams2()
+    param_sign_2_msgs.forEach {
+        val (bytes, from) = it
+         params_sign_2.add_commitment_from_user(from,bytes)
+    }
+
+    val res_sign_2 = SchnorrSignWrapper.sign_2_sign(signWrapper,params_sign_2, msgToSing)
+
+    val share = res_sign_2._share
+    signWrapper = SignResult2.get_wrapper(res_sign_2)
+
+    outputChannel.send(SchnorrAgentOutput.SignShare(share,index))
+
+    mutex.lock()
+
+    val param_sign_3 = SignParams3()
+    param_sign_3_msgs.forEach {
+        val (bytes,from) = it
+        param_sign_3.add_share_of_user(from,bytes)
+    }
+
+    val res_sign_3 = SchnorrSignWrapper.sign_3_complete(signWrapper,param_sign_3)
+
+    outputChannel.send(SchnorrAgentOutput.Signature(res_sign_3))
 
 }
 
@@ -94,8 +167,8 @@ suspend fun main(args: Array<String>) = withContext(Dispatchers.Default){
 //        return
     }
 
-    val amount = 5000
-    val threshold = 1
+    val amount = 44
+    val threshold = 2
 
     val inputChannels = mutableListOf<Channel<SchnorrAgentMessage>>()
     val outputChannel = Channel<SchnorrAgentOutput>()
@@ -128,23 +201,37 @@ suspend fun main(args: Array<String>) = withContext(Dispatchers.Default){
                 }
 
             }
-            is SchnorrAgentOutput.Done -> {
+            is SchnorrAgentOutput.KeyGenDone -> {
 //                println("agent ${msg.index} is done ")
                 donecount++
                 if (donecount == amount - 1)
                     println("keyGen done!")
             }
+
+            is SchnorrAgentOutput.SignPreprocess -> {
+                val (_,from) = msg
+                inputChannels.take(threshold).forEachIndexed {index, channel ->
+                    if (from == index+1)
+                        return@forEachIndexed
+                    launch {
+                        channel.send(msg)
+                    }
+                }
+            }
+
+            is SchnorrAgentOutput.SignShare -> {
+                if (msg.fromIndex == 1)
+                    continue
+                inputChannels.first().send(msg)
+            }
+
+            is SchnorrAgentOutput.Signature -> {
+                val (sigBytes) = msg
+
+                println("signing complete\n Signature: ${sigBytes.toHex()}")
+            }
         }
     }
-
-    println("hi")
-
-
-
-
-
-
-
 
 }
 
