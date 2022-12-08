@@ -110,13 +110,13 @@ impl SchnorrSignWrapper{
         panic!()
     }
 
-    fn new_instance_for_signing(key: &SchnorrKeyWrapper) -> SchnorrSignWrapper{
+    fn new_instance_for_signing(key: &SchnorrKeyWrapper, threshold: u32) -> SchnorrSignWrapper{
         Self{
             algo_machine: Some(
                 AlgorithmMachine::new(
                 Schnorr::<Secp256k1, BitcoinHram>::default(),
                 key.key.clone(),
-                &[1,2]
+                &(1..threshold+1).into_iter().map(|x| x as u16).collect::<Vec<u16>>()[..]
             ).unwrap()),
             sign_machine: None,
             signature_machine: None

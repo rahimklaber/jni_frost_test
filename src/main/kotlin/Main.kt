@@ -120,7 +120,7 @@ suspend fun CoroutineScope.SchnorrAgent(amount: Int, index: Int, threshold: Int,
     if(index> threshold)
         return@launch
 
-    var signWrapper = SchnorrSignWrapper.new_instance_for_signing(keyWrapper)
+    var signWrapper = SchnorrSignWrapper.new_instance_for_signing(keyWrapper,threshold.toLong())
 
     // preprocess step
     val res_sign_1 = SchnorrSignWrapper.sign_1_preprocess(signWrapper)
@@ -159,7 +159,7 @@ suspend fun CoroutineScope.SchnorrAgent(amount: Int, index: Int, threshold: Int,
 
 suspend fun main(args: Array<String>) = withContext(Dispatchers.Default){
     try {
-        System.load("C:\\Users\\Rahim\\Desktop\\jni_frost_test\\src\\main\\\\resources\\mobcore.dll")
+        System.load("C:\\Users\\rahim\\Desktop\\thesis\\jna_frost_test\\src\\main\\resources\\mobcore.dll")
 
     } catch (e: UnsatisfiedLinkError) {
         println(e)
@@ -167,7 +167,7 @@ suspend fun main(args: Array<String>) = withContext(Dispatchers.Default){
 //        return
     }
 
-    val amount = 44
+    val amount = 10
     val threshold = 2
 
     val inputChannels = mutableListOf<Channel<SchnorrAgentMessage>>()
