@@ -1,4 +1,13 @@
 use std::{collections::HashMap, ops::Index, panic, f32::consts::E};
+use bitcoin::consensus::deserialize;
+use bitcoin::psbt::Psbt;
+use bitcoin::{SchnorrSighashType, Script, Transaction, TxOut};
+use bitcoin::blockdata::constants::COIN_VALUE;
+use bitcoin::hashes::hex::FromHex;
+use bitcoin::psbt::serialize::Deserialize;
+use bitcoin::util::sighash;
+use bitcoin::util::sighash::SighashCache;
+use bitcoin::util::taproot::TapTweakHash;
 
 use bitcoin_serai::crypto::{BitcoinHram, make_even};
 use dkg::{ThresholdParams, frost::{KeyGenMachine, SecretShare, SecretShareMachine, Commitments, KeyMachine}, ThresholdKeys};
@@ -6,7 +15,8 @@ use rand::rngs::OsRng;
 mod java_glue;
 pub use crate::java_glue::*;
 use modular_frost::{algorithm::{Algorithm, Schnorr}, curve::{Secp256k1, IetfSecp256k1Hram, Ciphersuite}, sign::{AlgorithmMachine, Params, PreprocessMachine, Writable, Preprocess, SignMachine, AlgorithmSignatureMachine, AlgorithmSignMachine, SignatureMachine, self}};
-use k256::{elliptic_curve::sec1::ToEncodedPoint,Scalar};
+use k256::{elliptic_curve::{sec1::ToEncodedPoint, generic_array::functional::FunctionalSequence}, Scalar, U256};
+use k256::elliptic_curve::ops::Reduce;
 
 pub struct SchnorrKeyGenWrapper{
     pub key_params: ThresholdParams,
@@ -22,6 +32,13 @@ pub struct SchnorrKeyWrapper{
 impl SchnorrKeyWrapper {
     fn new () -> SchnorrKeyWrapper{
         panic!();
+    }
+
+    fn get_bitcoin_encoded_key(&self) -> Vec<i8>{
+        let pubkey_compressed = self.key.group_key().to_encoded_point(true);
+        // bitcoin::taproot
+        pubkey_compressed.x().to_owned().unwrap()
+        .map(|&x|x as i8).to_vec()
     }
     
 }
@@ -110,7 +127,15 @@ impl SchnorrSignWrapper{
         panic!()
     }
 
-    fn new_instance_for_signing(key: &SchnorrKeyWrapper, threshold: u32) -> SchnorrSignWrapper{
+    fn new_instance_for_signing(_key: & SchnorrKeyWrapper, threshold: u32) -> SchnorrSignWrapper{
+        let mut key = _key.clone();
+        let pubkey_compressed = key.key.group_key().to_encoded_point(true);
+        let pubkey =  pubkey_compressed.x().to_owned().unwrap();
+        let pubkey_obj =
+            secp256k1::XOnlyPublicKey::from_slice(&pubkey_compressed.x().to_owned().unwrap()).unwrap();
+        let secp = secp256k1::SECP256K1;
+        let tweak = TapTweakHash::from_key_and_tweak(pubkey_obj, None).to_scalar().to_be_bytes();
+        key.key.offset(Scalar::from_uint_reduced(U256::from_be_slice(&tweak)));
         Self{
             algo_machine: Some(
                 AlgorithmMachine::new(
@@ -139,8 +164,20 @@ impl SchnorrSignWrapper{
         }
     }
 
-    fn sign_2_sign(wrapper: SchnorrSignWrapper, params: SignParams2, msg_i8: &[i8]) -> SignResult2 {
+    fn sign_2_sign(wrapper: SchnorrSignWrapper, params: SignParams2, msg_i8: &[i8], prev_out_script: &[i8]) -> SignResult2 {
         let msg= unsafe { &*(msg_i8 as *const _  as *const [u8]) };
+        let prev_out_script = unsafe { &*(prev_out_script as *const _  as *const [u8]) };
+        //assume msg is serialized transaction
+        let mut tx = deserialize::<Transaction>(msg).unwrap();
+        let psbt = Psbt::from_unsigned_tx(tx).unwrap();
+        let hash = SighashCache::new(&psbt.unsigned_tx).taproot_key_spend_signature_hash(
+            0,
+            &sighash::Prevouts::All(&[TxOut {
+                value: COIN_VALUE /100,
+                script_pubkey: Script::deserialize(prev_out_script).unwrap(),
+            }]),
+            SchnorrSighashType::All,
+        ).unwrap();
         let sign_machine = wrapper.sign_machine.unwrap();
         let map : HashMap<u16,Preprocess<_,_>> =params.commitments.iter()
         .map(|(&user,buf)|{
@@ -148,7 +185,7 @@ impl SchnorrSignWrapper{
             (user, preprocess)
         }).collect();
 
-        let (signature_machine, sig_share) = sign_machine.sign(map, msg).unwrap();
+        let (signature_machine, sig_share) = sign_machine.sign(map, hash.as_ref()).unwrap();
         let mut buf: Vec<u8> = vec![];
         sig_share.write(& mut buf);
         let buf_i8 : Vec<i8> = buf.iter().map(|&x| x as i8).collect();
@@ -165,6 +202,8 @@ impl SchnorrSignWrapper{
 
     fn sign_3_complete(wrapper: SchnorrSignWrapper, params: SignParams3) -> Vec<i8>{
         let signature_machine = wrapper.signature_machine.unwrap();
+
+
 
         let shares_map = params.shares.iter()
         .map(|(&user,buf)|{

@@ -31,21 +31,21 @@ public final class SchnorrSignWrapper {
     }
     private static native long do_sign_1_preprocess(long wrapper);
 
-    public static SignResult2 sign_2_sign(SchnorrSignWrapper wrapper, SignParams2 params, byte [] msg) {
+    public static SignResult2 sign_2_sign(SchnorrSignWrapper wrapper, SignParams2 params, byte [] msg_i8, byte [] prev_out_script) {
         long a0 = wrapper.mNativeObj;
         wrapper.mNativeObj = 0;
 
         long a1 = params.mNativeObj;
         params.mNativeObj = 0;
 
-        long ret = do_sign_2_sign(a0, a1, msg);
+        long ret = do_sign_2_sign(a0, a1, msg_i8, prev_out_script);
         SignResult2 convRet = new SignResult2(InternalPointerMarker.RAW_PTR, ret);
         java.lang.ref.Reference.reachabilityFence(wrapper);
         java.lang.ref.Reference.reachabilityFence(params);
 
         return convRet;
     }
-    private static native long do_sign_2_sign(long wrapper, long params, byte [] msg);
+    private static native long do_sign_2_sign(long wrapper, long params, byte [] msg_i8, byte [] prev_out_script);
 
     public static byte [] sign_3_complete(SchnorrSignWrapper wrapper, SignParams3 params) {
         long a0 = wrapper.mNativeObj;

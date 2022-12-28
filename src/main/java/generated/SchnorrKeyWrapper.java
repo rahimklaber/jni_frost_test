@@ -9,6 +9,13 @@ public final class SchnorrKeyWrapper {
     }
     private static native long init();
 
+    public final byte [] get_bitcoin_encoded_key() {
+        byte [] ret = do_get_bitcoin_encoded_key(mNativeObj);
+
+        return ret;
+    }
+    private static native byte [] do_get_bitcoin_encoded_key(long self);
+
     public synchronized void delete() {
         if (mNativeObj != 0) {
             do_delete(mNativeObj);

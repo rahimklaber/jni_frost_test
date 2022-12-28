@@ -11,4 +11,4 @@
     clippy::clone_on_copy
 )]
 
-include!(concat!("C:/Users/rahim/Desktop/thesis/jna_frost_test/rust_code/out", "/java_glue.rs"));
+include!("../out/java_glue.rs");
