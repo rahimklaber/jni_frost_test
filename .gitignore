@@ -43,3 +43,7 @@ bin/
 /rust_code/target/
 /frost_test/target/
 /gradle/
+
+__xd.spvchain
+
+__xd.wallet

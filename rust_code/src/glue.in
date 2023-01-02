@@ -101,3 +101,12 @@ foreign_class!(
 		fn SchnorrKeyGenWrapper::key_gen_3_complete(wrapper: SchnorrKeyGenWrapper, param_wrapper: ParamsKeygen3) -> SchnorrKeyWrapper;
 	}
 );
+
+foreign_class!(
+	class SchnorrSingleSignTest {
+	    self_type SchnorrSingleSignTest;
+	    constructor SchnorrSingleSignTest::new()-> SchnorrSingleSignTest;
+	    fn SchnorrSingleSignTest::get_bitcoin_encoded_key(&self) -> Vec<i8>;
+	    fn SchnorrSingleSignTest::sign_tx(&self,msg_i8: &[i8], prev_out_script: &[i8]) -> Vec<i8>;
+	}
+);

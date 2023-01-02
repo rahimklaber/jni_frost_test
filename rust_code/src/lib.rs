@@ -1,22 +1,151 @@
-use std::{collections::HashMap, ops::Index, panic, f32::consts::E};
-use bitcoin::consensus::deserialize;
-use bitcoin::psbt::Psbt;
-use bitcoin::{SchnorrSighashType, Script, Transaction, TxOut};
+extern crate core;
+
+use std::{collections::HashMap, f32::consts::E, ops::Index, panic};
+use std::mem::transmute;
+use std::ops::{Add, Neg};
+use std::str::FromStr;
+use std::thread::park;
+
+use bitcoin::{OutPoint, PackedLockTime, SchnorrSig, SchnorrSighashType, Script, Transaction, Txid, TxIn, TxOut, Witness};
 use bitcoin::blockdata::constants::COIN_VALUE;
+use bitcoin::consensus::deserialize;
+use bitcoin::hashes::Hash;
 use bitcoin::hashes::hex::FromHex;
-use bitcoin::psbt::serialize::Deserialize;
+use bitcoin::network::message::NetworkMessage::Tx;
+use bitcoin::psbt::{Input, Psbt};
+use bitcoin::psbt::serialize::{Deserialize, Serialize};
+use bitcoin::schnorr::{TapTweak, TweakedPublicKey};
 use bitcoin::util::sighash;
 use bitcoin::util::sighash::SighashCache;
 use bitcoin::util::taproot::TapTweakHash;
-
 use bitcoin_serai::crypto::{BitcoinHram, make_even};
-use dkg::{ThresholdParams, frost::{KeyGenMachine, SecretShare, SecretShareMachine, Commitments, KeyMachine}, ThresholdKeys};
-use rand::rngs::OsRng;
-mod java_glue;
-pub use crate::java_glue::*;
-use modular_frost::{algorithm::{Algorithm, Schnorr}, curve::{Secp256k1, IetfSecp256k1Hram, Ciphersuite}, sign::{AlgorithmMachine, Params, PreprocessMachine, Writable, Preprocess, SignMachine, AlgorithmSignatureMachine, AlgorithmSignMachine, SignatureMachine, self}};
-use k256::{elliptic_curve::{sec1::ToEncodedPoint, generic_array::functional::FunctionalSequence}, Scalar, U256};
+use dkg::{frost::{Commitments, KeyGenMachine, KeyMachine, SecretShare, SecretShareMachine}, ThresholdCore, ThresholdKeys, ThresholdParams};
+use k256::{elliptic_curve::{generic_array::functional::FunctionalSequence, sec1::ToEncodedPoint}, ProjectivePoint, Scalar, schnorr, U256};
 use k256::elliptic_curve::ops::Reduce;
+use k256::elliptic_curve::sec1::Tag;
+use modular_frost::{algorithm::{Algorithm, Schnorr}, curve::{Ciphersuite, IetfSecp256k1Hram, Secp256k1}, sign::{self, AlgorithmMachine, AlgorithmSignatureMachine, AlgorithmSignMachine, Params, Preprocess, PreprocessMachine, SignatureMachine, SignMachine, Writable}};
+use modular_frost::algorithm::SchnorrSignature;
+use rand::rngs::OsRng;
+use secp256k1::{KeyPair, Message, XOnlyPublicKey};
+use secp256k1::Parity::{Even, Odd};
+
+pub use crate::java_glue::*;
+
+mod java_glue;
+
+pub struct SchnorrSingleSignTest{
+    pub keypair: KeyPair
+}
+
+impl SchnorrSingleSignTest{
+    fn new_from_bytes(bytes: &[u8]) -> Self{
+        return Self{
+            keypair: KeyPair::from_seckey_slice(secp256k1::SECP256K1,bytes).unwrap()
+        }
+    }
+
+    fn new() -> Self{
+        // KeyPair::from
+        Self::new_from_bytes(hex::decode("3e6c3783aa5cf8952b0d7f4e7942c6556b262b3d903679747f93ebd9a5730105").unwrap().as_slice())
+        // return Self{
+        //     keypair: KeyPair::new(secp256k1::SECP256K1,& mut OsRng),
+        // }
+    }
+    fn get_bitcoin_encoded_key(&self) -> Vec<i8>{
+        let pubkey_compressed = self.keypair.public_key().x_only_public_key().0;
+
+        pubkey_compressed.tap_tweak(secp256k1::SECP256K1,None).0
+            .serialize()
+            .map(|x|x as i8).to_vec()
+    }
+
+    fn sign_tx(&self,msg_i8: &[i8], prev_out_script: &[i8]) -> Vec<i8>{
+        let msg= unsafe { &*(msg_i8 as *const _  as *const [u8]) };
+        let prev_out_script = unsafe { &*(prev_out_script as *const _  as *const [u8]) };
+        //assume msg is serialized transaction
+        let mut tx = deserialize::<Transaction>(msg).unwrap();
+
+        let tweaked = self.keypair.clone().tap_tweak(secp256k1::SECP256K1,None);
+
+        let script =  Script::new_v1_p2tr_tweaked(TweakedPublicKey::dangerous_assume_tweaked(tweaked.clone().to_inner().public_key().x_only_public_key().0));
+
+        // let mut tx  = Transaction{
+        //     version: 2,
+        //     lock_time: PackedLockTime::ZERO,
+        //     input: vec![
+        //         TxIn{
+        //             previous_output: OutPoint{
+        //                 txid: tx.input[0].previous_output.txid,
+        //                 vout: tx.input[0].previous_output.vout
+        //             },
+        //             script_sig: Default::default(),
+        //             sequence: Default::default(),
+        //             witness: Default::default(),
+        //         }
+        //     ],
+        //     output: vec![
+        //         TxOut{
+        //             value: tx.output[0].value,
+        //             script_pubkey: script.clone(),
+        //         }
+        //     ],
+        // };
+
+        // let mut psbt = Psbt::from_unsigned_tx(tx.clone()).unwrap();
+        println!("script: {:?}",hex::encode(prev_out_script));
+        let hash = SighashCache::new(&tx).taproot_key_spend_signature_hash(
+            0,
+            &sighash::Prevouts::All(&[TxOut {
+                value: 1000000 ,
+                script_pubkey: script.clone(),
+            }]),
+            SchnorrSighashType::Default,
+        ).unwrap();
+
+
+        println!("hash: {:?}",hex::encode(hash.as_ref()));
+
+        dbg!(tx.clone());
+
+
+
+
+        println!("tweaked priv: {:?}",hex::encode(tweaked.clone().to_inner().secret_bytes()));
+        let msg = Message::from_slice(hash.as_ref()).unwrap();
+        // let msg = Message::from_slice(hex::decode("f2aa12301f75e976d48925cfc870f593f249a42774c4cb8a1fe2586f899137f5").unwrap().as_slice()).unwrap();
+        let sig = tweaked.clone().to_inner().sign_schnorr(msg.clone());
+        let bitcoinsig = SchnorrSig{
+            sig,
+            hash_ty: SchnorrSighashType::Default,
+        };
+        let mut tx_to_sign = tx.clone();
+
+        let mut witness = Witness::new();
+        witness.push(bitcoinsig.serialize().as_slice());
+        tx_to_sign.input[0].witness = witness;
+
+
+        tx_to_sign.verify(|_|{
+            Some(TxOut {
+                value: 1000000,
+                script_pubkey: Script::deserialize(prev_out_script).unwrap(),
+            })
+        }).expect("failed to veirfy tx");
+
+        println!("bitcoin rust serialized: {:?}",hex::encode(tx_to_sign.clone().serialize()));
+
+
+        sig.verify(&msg,&tweaked.clone().to_inner().x_only_public_key().0).unwrap();
+
+
+
+         bitcoinsig.serialize()
+            .into_iter().map(|x|x as i8).collect()
+            // .as_slice()
+            // .into_iter()
+            // .map(|&x|x as i8).to_vec()
+    }
+}
 
 pub struct SchnorrKeyGenWrapper{
     pub key_params: ThresholdParams,
@@ -36,9 +165,12 @@ impl SchnorrKeyWrapper {
 
     fn get_bitcoin_encoded_key(&self) -> Vec<i8>{
         let pubkey_compressed = self.key.group_key().to_encoded_point(true);
+        XOnlyPublicKey::from_slice(pubkey_compressed.x().unwrap()).unwrap().tap_tweak(secp256k1::SECP256K1,None).0
+            .serialize()
+            .map(|x|x as i8).to_vec()
         // bitcoin::taproot
-        pubkey_compressed.x().to_owned().unwrap()
-        .map(|&x|x as i8).to_vec()
+        // pubkey_compressed.x().to_owned().unwrap()
+        // .map(|&x|x as i8).to_vec()
     }
     
 }
@@ -119,7 +251,10 @@ impl SignParams3{
 pub struct SchnorrSignWrapper{
     pub algo_machine: Option<AlgorithmMachine<Secp256k1,Schnorr<Secp256k1,BitcoinHram>>>,
     pub sign_machine: Option<AlgorithmSignMachine<Secp256k1,Schnorr<Secp256k1,BitcoinHram>>>,
-    pub signature_machine: Option<AlgorithmSignatureMachine<Secp256k1,Schnorr<Secp256k1,BitcoinHram>>>
+    pub signature_machine: Option<AlgorithmSignatureMachine<Secp256k1,Schnorr<Secp256k1,BitcoinHram>>>,
+    pub tweak: Scalar,
+    pub threshold_keys: ThresholdKeys<Secp256k1>,
+    pub msg: Vec<u8>
 }
 
 impl SchnorrSignWrapper{
@@ -128,24 +263,42 @@ impl SchnorrSignWrapper{
     }
 
     fn new_instance_for_signing(_key: & SchnorrKeyWrapper, threshold: u32) -> SchnorrSignWrapper{
-        let mut key = _key.clone();
-        let pubkey_compressed = key.key.group_key().to_encoded_point(true);
-        let pubkey =  pubkey_compressed.x().to_owned().unwrap();
-        let pubkey_obj =
+
+
+        let mut key = _key.key.clone();
+        let pubkey_compressed = key.group_key().to_encoded_point(true);
+        println!("raw pk {:?}",hex::encode(pubkey_compressed.x().unwrap()));
+        let mut pubkey_obj =
             secp256k1::XOnlyPublicKey::from_slice(&pubkey_compressed.x().to_owned().unwrap()).unwrap();
-        let secp = secp256k1::SECP256K1;
-        let tweak = TapTweakHash::from_key_and_tweak(pubkey_obj, None).to_scalar().to_be_bytes();
-        key.key.offset(Scalar::from_uint_reduced(U256::from_be_slice(&tweak)));
+            let tweak = TapTweakHash::from_key_and_tweak(pubkey_obj, None).to_scalar();
+        let tweak_parsed = Scalar::from_uint_reduced(U256::from_be_slice(tweak.to_be_bytes().as_slice()));
+        let pub_tweak = tweak_parsed;
+        key = key.offset(pub_tweak.clone());
+        let test_pub = key.group_key();
+        let (_,test_offset) = make_even(test_pub);
+        key = key.offset(Scalar::from(Scalar::from(test_offset)));
+        // if test_offset != 0{
+        //     panic!("tweaked pub key not even")
+        // }
+        // let (even_key,offset) = make_even(key.group_key());
+        // if offset == 0{
+        //     println!("key is even");
+        // }else{
+        //     println!("key is odd offset: {:?}",offset);
+        // }
+        // key = key.offset(Scalar::from(offset));
         Self{
             algo_machine: Some(
                 AlgorithmMachine::new(
                 Schnorr::<Secp256k1, BitcoinHram>::default(),
-                key.key.clone(),
+                key.clone(),
                 &(1..threshold+1).into_iter().map(|x| x as u16).collect::<Vec<u16>>()[..]
             ).unwrap()),
             sign_machine: None,
-            signature_machine: None
-            
+            signature_machine: None,
+            tweak: pub_tweak.clone() + Scalar::from(test_offset),
+            threshold_keys: key.clone(),
+            msg: Vec::new()
         }
     }
 
@@ -158,7 +311,10 @@ impl SchnorrSignWrapper{
             wrapper: Self{
                 algo_machine: None,
                 sign_machine: Some(sign_machine),
-                signature_machine: None
+                signature_machine: None,
+                tweak: wrapper.tweak,
+                threshold_keys: wrapper.threshold_keys,
+                msg: wrapper.msg
             },
             preprocess: buffer,
         }
@@ -169,15 +325,44 @@ impl SchnorrSignWrapper{
         let prev_out_script = unsafe { &*(prev_out_script as *const _  as *const [u8]) };
         //assume msg is serialized transaction
         let mut tx = deserialize::<Transaction>(msg).unwrap();
-        let psbt = Psbt::from_unsigned_tx(tx).unwrap();
-        let hash = SighashCache::new(&psbt.unsigned_tx).taproot_key_spend_signature_hash(
+        let script = Script::from_hex(hex::encode(prev_out_script).as_str()).unwrap();
+        // let script =  Script::new_v1_p2tr_tweaked(TweakedPublicKey::dangerous_assume_tweaked(tweaked.clone().to_inner().public_key().x_only_public_key().0));
+
+        // let mut tx  = Transaction{
+        //     version: 2,
+        //     lock_time: PackedLockTime::ZERO,
+        //     input: vec![
+        //         TxIn{
+        //             previous_output: OutPoint{
+        //                 txid: tx.input[0].previous_output.txid,
+        //                 vout: tx.input[0].previous_output.vout
+        //             },
+        //             script_sig: Default::default(),
+        //             sequence: Default::default(),
+        //             witness: Default::default(),
+        //         }
+        //     ],
+        //     output: vec![
+        //         TxOut{
+        //             value: tx.output[0].value,
+        //             script_pubkey: tx.output[0].script_pubkey.clone(),
+        //         }
+        //     ],
+        // };
+
+        // let mut psbt = Psbt::from_unsigned_tx(tx.clone()).unwrap();
+        println!("script: {:?}",hex::encode(prev_out_script));
+        let hash = SighashCache::new(&tx).taproot_key_spend_signature_hash(
             0,
             &sighash::Prevouts::All(&[TxOut {
-                value: COIN_VALUE /100,
-                script_pubkey: Script::deserialize(prev_out_script).unwrap(),
+                value: 1000000 ,
+                script_pubkey: script.clone(),
             }]),
-            SchnorrSighashType::All,
+            SchnorrSighashType::Default,
         ).unwrap();
+
+        println!("hash to sign: {:?}",hex::encode(hash.as_ref()));
+
         let sign_machine = wrapper.sign_machine.unwrap();
         let map : HashMap<u16,Preprocess<_,_>> =params.commitments.iter()
         .map(|(&user,buf)|{
@@ -188,13 +373,42 @@ impl SchnorrSignWrapper{
         let (signature_machine, sig_share) = sign_machine.sign(map, hash.as_ref()).unwrap();
         let mut buf: Vec<u8> = vec![];
         sig_share.write(& mut buf);
-        let buf_i8 : Vec<i8> = buf.iter().map(|&x| x as i8).collect();
 
         SignResult2{
             wrapper: Self{
                 algo_machine: None,
                 sign_machine: None,
                 signature_machine: Some(signature_machine),
+                tweak: wrapper.tweak,
+                threshold_keys: wrapper.threshold_keys,
+                msg: hash.as_ref().iter().map(|&x|x).collect()
+            },
+            share: buf,
+        }
+    }
+
+    fn sign_2_sign_old(wrapper: SchnorrSignWrapper, params: SignParams2, msg_i8: &[i8]) -> SignResult2 {
+        let msg= unsafe { &*(msg_i8 as *const _  as *const [u8]) };
+
+        let sign_machine = wrapper.sign_machine.unwrap();
+        let map : HashMap<u16,Preprocess<_,_>> =params.commitments.iter()
+            .map(|(&user,buf)|{
+                let preprocess = sign_machine.read_preprocess::<&[u8]>(&mut buf.as_ref()).unwrap();
+                (user, preprocess)
+            }).collect();
+
+        let (signature_machine, sig_share) = sign_machine.sign(map, msg).unwrap();
+        let mut buf: Vec<u8> = vec![];
+        sig_share.write(& mut buf);
+
+        SignResult2{
+            wrapper: Self{
+                algo_machine: None,
+                sign_machine: None,
+                signature_machine: Some(signature_machine),
+                tweak: wrapper.tweak,
+                threshold_keys: wrapper.threshold_keys,
+                msg: msg.iter().map(|&x|x).collect()
             },
             share: buf,
         }
@@ -211,13 +425,27 @@ impl SchnorrSignWrapper{
             (user,sig)
         }).collect();
         let mut _sig = signature_machine.complete(shares_map).unwrap();
-
+        //
         let mut offset = 0;
         (_sig.R, offset) = make_even(_sig.R);
         _sig.s += Scalar::from(offset);
+        // wrapper.tweak.clone().
+        // _sig.R += Secp256k1::generator()* Scalar::from(wrapper.tweak.clone())   ;
+        // _sig.s += Scalar::from(wrapper.tweak.clone());
+        // _sig.R += Secp256k1::generator()* Scalar::from(wrapper.tweak.clone())   ;
+        // _sig.s += Scalar::from(wrapper.tweak.clone());
 
         // mae compatible wth bip340
         let sig = secp256k1::schnorr::Signature::from_slice(&_sig.serialize()[1..65]).unwrap();
+
+        let verify_key = XOnlyPublicKey::from_slice(wrapper.threshold_keys.group_key().to_encoded_point(true).x().unwrap()).unwrap();
+        println!("veirfy_key : {:?}",hex::encode(verify_key.serialize()));
+        let verify_msg = wrapper.msg.clone();
+        println!("msg len: {:?}",verify_msg.len());
+        let verify_msg_obj = Message::from_slice(verify_msg.as_slice()).unwrap();
+        sig.verify(&verify_msg_obj,&verify_key).expect("sig is invalid");
+
+        println!("sig size: {:?}",_sig.serialize().len());
         let mut buf = &_sig.serialize()[1..65];
         return buf.iter().map(|&x| x as i8).collect();
     }
@@ -384,8 +612,7 @@ impl SchnorrKeyGenWrapper{
 
         let core = wrapper.key_machine.unwrap().complete(&mut OsRng, shares_map).unwrap();
         let mut key = ThresholdKeys::new(core);
-        let (_,offset) = make_even(key.group_key());
-        key = key.offset(Scalar::from(offset));
+
 
         SchnorrKeyWrapper{
             key:key

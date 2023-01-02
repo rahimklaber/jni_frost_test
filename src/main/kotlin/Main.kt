@@ -1,3 +1,4 @@
+import generated.SchnorrSingleSignTest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -7,15 +8,33 @@ import kotlinx.coroutines.withContext
 import org.bitcoinj.core.*
 import org.bitcoinj.kits.WalletAppKit
 import org.bitcoinj.params.RegTestParams
+import org.bitcoinj.params.TestNet3Params
 import org.bitcoinj.script.Script
 import org.bitcoinj.script.ScriptBuilder
 import org.bitcoinj.script.ScriptOpCodes
 import org.bitcoinj.wallet.SendRequest
 import java.io.File
+import java.math.BigInteger
 import java.net.InetAddress
 import kotlin.coroutines.CoroutineContext
 
 fun ByteArray.toHex(): String = joinToString(separator = "") { eachByte -> "%02x".format(eachByte) }
+fun String.hexToBytes(): ByteArray {
+    if (length % 2 != 0) throw IllegalArgumentException("String length must be even")
+     val HEX_CHARS = "0123456789abcdef"
+
+    val result = ByteArray(length / 2)
+
+    for (i in 0 until length step 2) {
+        val firstIndex = HEX_CHARS.indexOf(this[i].toLowerCase())
+        val secondIndex = HEX_CHARS.indexOf(this[i + 1].toLowerCase())
+
+        val octet = firstIndex.shl(4).or(secondIndex)
+        result[i.shr(1)] = octet.toByte()
+    }
+
+    return result
+}
 
 sealed interface SchnorrAgentMessage{
     data class KeyCommitment(val commitment: ByteArray, val fromIndex: Int) : SchnorrAgentMessage
@@ -68,13 +87,13 @@ suspend fun main(args: Array<String>) = withContext(Dispatchers.IO){
         }
     }
 
-    val localHost = InetAddress.getLocalHost()
-   kit.setPeerNodes(PeerAddress(params, localHost, params.port))
-
+//    val localHost = InetAddress.getLocalHost()
+//   kit.setPeerNodes(PeerAddress(params, localHost, params.port))
+    kit.connectToLocalHost()
 // Download the block chain and wait until it's done.
     kit.startAsync()
     Thread.sleep(1000)
-//    kit.wallet().addCoinsReceivedEventListener { wallet, tx, prevBalance, newBalance ->
+//    kit.wallet().addCoinsinofReceivedEventListener { wallet, tx, prevBalance, newBalance ->
 //        println("received coins")
 //    }
 
@@ -94,6 +113,7 @@ suspend fun main(args: Array<String>) = withContext(Dispatchers.IO){
 
     var donecount = 0
     val keyGenDone = Mutex(true)
+    // this is actually the tweaked pubkey for key spend
     var pubKey = ByteArray(0)
     var sig = ByteArray(0)
     repeat(1){
@@ -162,7 +182,7 @@ suspend fun main(args: Array<String>) = withContext(Dispatchers.IO){
             it.startKeygen()
         }
     }
-    keyGenDone.lock()
+//    keyGenDone.lock()
     println(pubKey.toHex())
 
     suspend fun sign(msg: ByteArray,prevoutScript: ByteArray): ByteArray {
@@ -175,6 +195,7 @@ suspend fun main(args: Array<String>) = withContext(Dispatchers.IO){
         return sig
     }
 
+    val singleSignKey = SchnorrSingleSignTest()
 
 
     while (true){
@@ -188,7 +209,7 @@ suspend fun main(args: Array<String>) = withContext(Dispatchers.IO){
 
                 val transaction = Transaction(params)
 
-                transaction.addOutput(Coin.CENT,script)
+                transaction.addOutput(Coin.SATOSHI.times(1000000),script)
 
                 val sendRequest = SendRequest.forTx(transaction)
                 kit.wallet().completeTx(sendRequest)
@@ -196,6 +217,88 @@ suspend fun main(args: Array<String>) = withContext(Dispatchers.IO){
                 val hash = transaction.txId
                 println("tx: ${transaction.bitcoinSerialize().toHex()} ")
                 println("txHash: $hash")
+
+                val tosign = Transaction(params)
+
+                val index = transaction.outputs.first {
+                    it.value == Coin.SATOSHI.times(1000000)
+                }.index
+
+                val input = tosign.addInput(transaction.txId,index.toLong(),ScriptBuilder.createEmpty())
+                val output = tosign.addOutput(Coin.MICROCOIN.times(10),script)
+
+//                println("to schnorr sign: ${tosign.bitcoinSerialize().toHex()}")
+
+                val schnorrsig = sign(tosign.bitcoinSerialize(), script.program)
+
+                input.witness = TransactionWitness(1).also {
+                    it.setPush(0,schnorrsig)
+                }
+
+                println("Schnorr signed: ${tosign.bitcoinSerialize().toHex()}")
+            }
+            "create2" ->{
+//                val (_, tohex) = lineElements
+
+                var script = ScriptBuilder().op(ScriptOpCodes.OP_1)
+                    .data(singleSignKey._bitcoin_encoded_key)
+                    .build()
+
+//                script = Script("5120fa9e200cc285ddf29759942b900e75371f9d64c6b5bc918a23bf2c99532818dd".hexToBytes())
+
+                val transaction = Transaction(params)
+
+                transaction.addOutput(Coin.SATOSHI.times(1000000),script)
+
+                val sendRequest = SendRequest.forTx(transaction)
+                kit.wallet().completeTx(sendRequest)
+//                kit.peerGroup().broadcastTransaction(sendRequest.tx)
+                val hash = transaction.txId
+                println("tx: ${transaction.bitcoinSerialize().toHex()} ")
+                println("txHash: $hash")
+
+                val tosign = Transaction(params)
+
+                val index = transaction.outputs.first {
+                    it.value == Coin.SATOSHI.times(1000000)
+                }.index
+
+                val input = tosign.addInput(transaction.txId,index.toLong(),ScriptBuilder.createEmpty())
+                val output = tosign.addOutput(Coin.MICROCOIN.times(10),script)
+
+                val schnorrsig = singleSignKey.sign_tx(tosign.bitcoinSerialize(),script.program)
+
+                input.witness = TransactionWitness(1).also {
+                    it.setPush(0,schnorrsig)
+                }
+
+                println("Schnorr signed: ${tosign.bitcoinSerialize().toHex()}")
+
+            }
+            "spend2" -> {
+                val (_,txHash, outIndex) = lineElements
+                val transaction = Transaction(params)
+                transaction.setVersion(2)
+
+                val script = ScriptBuilder().op(ScriptOpCodes.OP_1)
+                    .data(singleSignKey._bitcoin_encoded_key)
+                    .build()
+
+                println("script : ${script.program.toHex()}")
+
+                val input = transaction.addInput(Sha256Hash.wrap(txHash),outIndex.toLong(),ScriptBuilder.createEmpty())
+                val output = transaction.addOutput(Coin.MICROCOIN.times(10),script)
+//                val hash = transaction.hashForWitnessSignature(0,script,Transaction.SigHash.ALL,false)
+//                val hash = transaction.hashForWitnessSignature(0,script,Coin.CENT,Transaction.SigHash.ALL,false)
+                val txSig = singleSignKey.sign_tx(transaction.bitcoinSerialize(), script.program)
+
+                input.witness = TransactionWitness(1).also {
+                    it.setPush(0,txSig)
+                }
+
+                println("tx: ${transaction.bitcoinSerialize().toHex()}")
+
+//                kit.peerGroup().broadcastTransaction(transaction)
 
             }
             // spend tx_hash out_index
@@ -207,8 +310,10 @@ suspend fun main(args: Array<String>) = withContext(Dispatchers.IO){
                     .data(pubKey)
                     .build()
 
+                println("script : ${script.program.toHex()}")
+
                 val input = transaction.addInput(Sha256Hash.wrap(txHash),outIndex.toLong(),ScriptBuilder.createEmpty())
-                val output = transaction.addOutput(Coin.MILLICOIN,script)
+                val output = transaction.addOutput(Coin.MICROCOIN.times(10),script)
 //                val hash = transaction.hashForWitnessSignature(0,script,Transaction.SigHash.ALL,false)
 //                val hash = transaction.hashForWitnessSignature(0,script,Coin.CENT,Transaction.SigHash.ALL,false)
                 val txSig = sign(transaction.bitcoinSerialize(), script.program)
@@ -224,6 +329,7 @@ suspend fun main(args: Array<String>) = withContext(Dispatchers.IO){
             }
             "info" -> {
                 println(kit.peerGroup().numConnectedPeers())
+                println("singlesignkey : ${singleSignKey._bitcoin_encoded_key.toHex()}")
                  println("address: ${kit.wallet().freshReceiveAddress()}")
                 println("balance: ${kit.wallet().balance}")
             }
