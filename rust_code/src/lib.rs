@@ -164,8 +164,21 @@ impl SchnorrKeyWrapper {
     }
 
     fn get_bitcoin_encoded_key(&self) -> Vec<i8>{
-        let pubkey_compressed = self.key.group_key().to_encoded_point(true);
-        XOnlyPublicKey::from_slice(pubkey_compressed.x().unwrap()).unwrap().tap_tweak(secp256k1::SECP256K1,None).0
+        let mut key = self.key.clone();
+        let pubkey_compressed = key.group_key().to_encoded_point(true);
+        println!("raw pk {:?}",hex::encode(pubkey_compressed.x().unwrap()));
+        let mut pubkey_obj =
+            secp256k1::XOnlyPublicKey::from_slice(&pubkey_compressed.x().to_owned().unwrap()).unwrap();
+        let tweak = TapTweakHash::from_key_and_tweak(pubkey_obj, None).to_scalar();
+        let tweak_parsed = Scalar::from_uint_reduced(U256::from_be_slice(tweak.to_be_bytes().as_slice()));
+        let pub_tweak = tweak_parsed;
+        key = key.offset(pub_tweak.clone());
+        let test_pub = key.group_key();
+        let (_,test_offset) = make_even(test_pub);
+        key = key.offset(Scalar::from(Scalar::from(test_offset)));
+
+        let pubkey_compressed = key.group_key().to_encoded_point(true);
+        XOnlyPublicKey::from_slice(pubkey_compressed.x().unwrap()).unwrap()
             .serialize()
             .map(|x|x as i8).to_vec()
         // bitcoin::taproot
