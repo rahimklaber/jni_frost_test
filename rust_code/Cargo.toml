@@ -7,6 +7,12 @@ edition = "2021"
 name = "mobcore"
 crate-type = ["cdylib"]
 
+[features]
+# If compiling on a system without OpenSSL installed, or cross-compiling for a different
+# architecture, enable this feature to compile OpenSSL as part of the build.
+# See https://docs.rs/openssl/#vendored for more.
+static_ssl = ['openssl/vendored']
+
 [dependencies]
 dkg = {git="https://github.com/vrx00/serai", branch="bitcoin-processor"}
 modular-frost = {git="https://github.com/vrx00/serai", branch="bitcoin-processor", features= ["secp256k1"]}
@@ -26,3 +32,6 @@ log-panics = "2.0"
 [build-dependencies]
 rifgen = "0.1.61"
 flapigen = "0.6.0-pre9"
+
+[dependencies.openssl]
+optional = true
