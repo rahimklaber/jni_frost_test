@@ -49,3 +49,5 @@ __xd.spvchain
 __xd.wallet
 
 pc_test_code/.idea/
+/android_test_app/.gradle/
+/android_test_app/app/build/

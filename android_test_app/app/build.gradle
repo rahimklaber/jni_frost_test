@@ -10,7 +10,7 @@ android {
     defaultConfig {
         applicationId "me.rahimklaber.frosttestapp"
         minSdk 24
-        targetSdk 32
+        targetSdk 30
         versionCode 1
         versionName "1.0"
 
@@ -41,4 +41,23 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4"
+
+    //andoidx ?
+    implementation "androidx.lifecycle:lifecycle-extensions:2.2.0"
+    implementation "androidx.lifecycle:lifecycle-common-java8:2.5.1"
+
+    //ipv8
+    implementation files('libs/ipv8-android-release.aar')
+    implementation files('libs/ipv8-all.jar')
+    implementation "com.goterl:lazysodium-android:5.0.1@aar"
+    implementation 'net.java.dev.jna:jna:5.5.0@aar'
+
+    implementation 'no.nordicsemi.android:ble:2.2.0-alpha06'
+    implementation 'no.nordicsemi.android.support.v18:scanner:1.4.2'
+
+    implementation "com.squareup.sqldelight:android-driver:1.2.1"
+    implementation "com.squareup.sqldelight:coroutines-extensions:1.2.1"
+    implementation 'uk.uuid.slf4j:slf4j-android:1.7.30-0'
 }
