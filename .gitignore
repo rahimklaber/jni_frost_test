@@ -51,3 +51,7 @@ __xd.wallet
 pc_test_code/.idea/
 /android_test_app/.gradle/
 /android_test_app/app/build/
+/android_test_app/.idea/
+/android_test_app/local.properties
+/.idea/vcs.xml
+/.idea/workspace.xml
