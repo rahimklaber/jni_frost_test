@@ -174,17 +174,18 @@ class SchnorrAgent(
             params_sign_2.add_commitment_from_user(from,bytes)
         }
 
-        val res_sign_2 = SchnorrSignWrapper.sign_2_sign(signWrapper,params_sign_2, msg,prevoutScript)
+        val res_sign_2 = SchnorrSignWrapper.sign_2_sign_normal(signWrapper,params_sign_2, msg)
+//        val res_sign_2 = SchnorrSignWrapper.sign_2_sign(signWrapper,params_sign_2, msg,prevoutScript)
 
         val share = res_sign_2._share
         signWrapper = SignResult2.get_wrapper(res_sign_2)
 
         outputChannel.send(SchnorrAgentOutput.SignShare(share, index))
 
-        if (index != 1){
+/*        if (index != 1){
             msgHandlerJob.cancel()
             return@coroutineScope
-        }
+        }*/
 
 
         mutex.lock()

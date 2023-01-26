@@ -333,7 +333,7 @@ impl SchnorrSignWrapper{
         }
     }
 
-    fn sign_2_sign(wrapper: SchnorrSignWrapper, params: SignParams2, msg_i8: &[i8], prev_out_script: &[i8]) -> SignResult2 {
+    fn sign_2_sign_bitcoin(wrapper: SchnorrSignWrapper, params: SignParams2, msg_i8: &[i8], prev_out_script: &[i8]) -> SignResult2 {
         let msg= unsafe { &*(msg_i8 as *const _  as *const [u8]) };
         let prev_out_script = unsafe { &*(prev_out_script as *const _  as *const [u8]) };
         //assume msg is serialized transaction
@@ -400,7 +400,7 @@ impl SchnorrSignWrapper{
         }
     }
 
-    fn sign_2_sign_old(wrapper: SchnorrSignWrapper, params: SignParams2, msg_i8: &[i8]) -> SignResult2 {
+    fn sign_2_sign_normal(wrapper: SchnorrSignWrapper, params: SignParams2, msg_i8: &[i8]) -> SignResult2 {
         let msg= unsafe { &*(msg_i8 as *const _  as *const [u8]) };
 
         let sign_machine = wrapper.sign_machine.unwrap();

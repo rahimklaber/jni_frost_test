@@ -38,6 +38,8 @@ import nl.tudelft.ipv8.peerdiscovery.strategy.RandomWalk
 import nl.tudelft.ipv8.sqldelight.Database
 import nl.tudelft.ipv8.util.hexToBytes
 import nl.tudelft.ipv8.util.toHex
+import kotlin.math.sign
+import kotlin.random.Random
 
 class MainActivity : AppCompatActivity() {
     lateinit var frostManager: FrostManager
@@ -66,13 +68,15 @@ class MainActivity : AppCompatActivity() {
                     frostCommunity.getPeers().find { it.mid == mid } ?: error("Could not find peer")
 
             },
-            getFrostInfo = {
-                null
-            }
+//            getFrostInfo = {
+//                null
+//            }
         )
         setContentView(R.layout.activity_main)
 
         val button = findViewById<Button>(R.id.JOIN_BUTTON)
+        val signbutton= findViewById<Button>(R.id.SIGN_BUTTON)
+        val signDataTextview = findViewById<TextView>(R.id.SIGN_DATA)
         val textview = findViewById<TextView>(R.id.FROST_UPDATES)
         var peerstestview = findViewById<TextView>(R.id.peers)
         GlobalScope.launch(Dispatchers.Main) {
@@ -96,6 +100,13 @@ class MainActivity : AppCompatActivity() {
             GlobalScope.launch {
                 textview.text = "${textview.text}\n started keygen"
                 frostManager.joinGroup()
+            }
+        }
+        signbutton.setOnClickListener {
+            GlobalScope.launch {
+                frostManager.proposeSign(Random.Default.nextBytes(32))
+//                textview.text = "${textview.text}\n started sign"
+                Log.d("FROST", "started sign")
             }
         }
 

@@ -23,23 +23,16 @@ data class FrostMemberInfo(
 //    ReadyForSign
 //}
 
-sealed interface FrostState{
-    object NotReady: FrostState
-    object ReadyForKeyGen: FrostState
-    data class RequestedToJoin(val id: Long): FrostState
-    data class KeyGenStep1(val id: Long): FrostState
-    data class KeyGenStep2(val id: Long): FrostState
-    data class KeyGenStep3(val id: Long): FrostState
-    object ReadyForSign: FrostState
-}
 
 
 data class FrostGroup(
-    val members: MutableList<FrostMemberInfo>,
-    val myIndex: Int
+    // members is without us
+    val members: List<FrostMemberInfo>,
+    val myIndex: Int,
+    val threshold: Int
 ){
     val amount : Int
-        get() = members.size
+        get() = members.size + 1 // we are not included here
 }
 
 typealias OnJoinRequestCallBack = (Peer, RequestToJoinMessage) -> Unit
@@ -83,30 +76,60 @@ class FrostCommunity : Community() {
                 channel.emit(pair)
             }
         }
+        messageHandlers[Preprocess.MESSAGE_ID] = { packet ->
+            val pair = packet.getAuthPayload(Preprocess.Deserializer)
+            //todo check this
+            scope.launch {
+                channel.emit(pair)
+            }
+        }
+        messageHandlers[SignShare.MESSAGE_ID] = { packet ->
+            val pair = packet.getAuthPayload(SignShare.Deserializer)
+            //todo check this
+            scope.launch {
+                channel.emit(pair)
+            }
+        }
+        messageHandlers[SignRequest.MESSAGE_ID] = { packet ->
+            val pair = packet.getAuthPayload(SignRequest.Deserializer)
+            //todo check this
+            scope.launch {
+                channel.emit(pair)
+            }
+        }
+        messageHandlers[SignRequestResponse.MESSAGE_ID] = { packet ->
+            val pair = packet.getAuthPayload(SignRequestResponse.Deserializer)
+            //todo check this
+            scope.launch {
+                channel.emit(pair)
+            }
+        }
     }
 
     // better name lol
     fun sendForPublic(peer: Peer, msg: FrostMessage) {
-        //todo fix this
-        val id = when(msg){
-            is KeyGenCommitments -> KeyGenCommitments.MESSAGE_ID
-            is KeyGenShare -> KeyGenShare.MESSAGE_ID
-            is RequestToJoinMessage -> RequestToJoinMessage.MESSAGE_ID
-            is RequestToJoinResponseMessage -> RequestToJoinResponseMessage.MESSAGE_ID
-        }
+        val id = messageIdFromMsg(msg)
         val packet = serializePacket(id,msg)
         send(peer,packet)
     }
 
-    fun broadcast(msg : FrostMessage){
-        //todo fix this
-        val id = when(msg){
+    private fun messageIdFromMsg(msg: FrostMessage) : Int =
+        when(msg){
             is KeyGenCommitments -> KeyGenCommitments.MESSAGE_ID
             is KeyGenShare -> KeyGenShare.MESSAGE_ID
             is RequestToJoinMessage -> RequestToJoinMessage.MESSAGE_ID
             is RequestToJoinResponseMessage -> RequestToJoinResponseMessage.MESSAGE_ID
+            is Preprocess -> Preprocess.MESSAGE_ID
+            is SignShare -> SignShare.MESSAGE_ID
+            is SignRequest -> SignRequest.MESSAGE_ID
+            is SignRequestResponse -> SignRequestResponse.MESSAGE_ID
         }
-        val packet = serializePacket(id,msg)
+
+
+    fun broadcast(msg : FrostMessage){
+        //todo fix this
+
+        val packet = serializePacket(messageIdFromMsg(msg),msg)
         for (peer in getPeers()) {
             send(peer,packet)
         }

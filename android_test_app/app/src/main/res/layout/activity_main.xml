@@ -16,6 +16,7 @@
         app:layout_constraintTop_toTopOf="parent">
 
         <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/CONSTRAINT_LAYOUT"
             android:layout_width="485dp"
             android:layout_height="match_parent">
 
@@ -23,7 +24,7 @@
                 android:id="@+id/JOIN_BUTTON"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Button"
+                android:text="join"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintHorizontal_bias="0.498"
@@ -43,13 +44,36 @@
                 android:id="@+id/FROST_UPDATES"
                 android:layout_width="223dp"
                 android:layout_height="128dp"
-                android:layout_marginBottom="136dp"
+                android:layout_marginBottom="132dp"
                 android:ems="10"
                 android:gravity="start|top"
                 android:inputType="textMultiLine"
+                android:textSize="12sp"
                 app:layout_constraintBottom_toTopOf="@+id/JOIN_BUTTON"
                 app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintHorizontal_bias="0.755"
                 app:layout_constraintStart_toStartOf="parent" />
+
+            <Button
+                android:id="@+id/SIGN_BUTTON"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="sign"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toStartOf="@+id/JOIN_BUTTON"
+                app:layout_constraintStart_toStartOf="parent" />
+
+            <EditText
+                android:id="@+id/SIGN_DATA"
+                android:layout_width="153dp"
+                android:layout_height="49dp"
+                android:ems="10"
+                android:inputType="textPersonName"
+                app:layout_constraintBottom_toTopOf="@+id/SIGN_BUTTON"
+                app:layout_constraintEnd_toStartOf="@+id/FROST_UPDATES"
+                app:layout_constraintHorizontal_bias="0.777"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
         </androidx.constraintlayout.widget.ConstraintLayout>
 
     </LinearLayout>

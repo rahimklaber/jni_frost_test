@@ -14,6 +14,8 @@ import me.rahimklaber.frosttestapp.SchnorrAgentOutput
 import me.rahimklaber.frosttestapp.ipv8.message.*
 import nl.tudelft.ipv8.Peer
 import nl.tudelft.ipv8.util.toHex
+import org.w3c.dom.Text
+import kotlin.math.sign
 import kotlin.random.Random
 import kotlin.reflect.KClass
 import kotlin.reflect.KFunction2
@@ -25,6 +27,16 @@ fun interface Sender{
 fun interface Broadcaster{
     fun broadcast(bytes: ByteArray)
 }
+/*
+*         val getIndex = { mid: String ->
+            midsOfNewGroup.indexOf(mid) + 1
+        }
+        val getMidFromIndex = { index: Int ->
+            midsOfNewGroup[index-1]
+        }*/
+
+fun FrostGroup.getIndex(mid: String) = members.find { it.peer.mid == mid }?.index
+fun FrostGroup.getMidForIndex(index: Int) = members.find { it.index == index }?.peer?.mid
 
 interface NetworkManager{
     fun send(peer: Peer, msg: FrostMessage)
@@ -38,27 +50,48 @@ sealed interface Update{
     data class TextUpdate(val text : String) : Update
 }
 
+
+sealed interface FrostState{
+    object NotReady: FrostState
+    data class RequestedToJoin(val id: Long): FrostState
+    object ReadyForKeyGen: FrostState
+    data class KeyGen(val id: Long): FrostState
+    object ReadyForSign: FrostState
+    data class ProposedSign(val id: Long) : FrostState
+    data class Sign(val id: Long): FrostState
+}
+
 typealias OnJoinRequestResponseCallback = (Peer, RequestToJoinResponseMessage) -> Unit
 typealias KeyGenCommitmentsCallaback = (Peer, KeyGenCommitments) -> Unit
 typealias KeyGenShareCallback = (Peer, KeyGenShare) -> Unit
+typealias SignShareCallback = (Peer, SignShare) -> Unit
+typealias PreprocessCallback = (Peer, Preprocess) -> Unit
+typealias SignRequestCallback = (Peer, SignRequest) -> Unit
+typealias SignRequestResponseCallback = (Peer, SignRequestResponse) -> Unit
+
 class FrostManager(
     val receiveChannel: SharedFlow<Pair<Peer, FrostMessage>>,
     val networkManager: NetworkManager,
-    val getFrostInfo : () -> FrostGroup?,
+//    val getFrostInfo : () -> FrostGroup?,
     val updatesChannel: MutableSharedFlow<Update> = MutableSharedFlow(extraBufferCapacity = 10),
     var state: FrostState = FrostState.ReadyForKeyGen,
     val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 ) {
-    val frostInfo: FrostGroup?
-        get() = getFrostInfo()
+    var frostInfo: FrostGroup? = null
+//        get() = getFrostInfo()
     val map: Map<KClass<out FrostMessage>, KFunction2<Peer, FrostMessage, Unit>> = mapOf(
         RequestToJoinMessage::class to ::processRequestToJoin,
         RequestToJoinResponseMessage::class to ::processRequestToJoinResponse,
         KeyGenCommitments::class to ::processKeyGenCommitments,
         KeyGenShare::class to ::processKeyGenShare,
+        SignShare::class to ::processSignShare,
+        Preprocess::class to ::processPreprocess,
+        SignRequest::class to ::processSignRequest,
+        SignRequestResponse::class to ::processSignRequestResponse
     ) as Map<KClass<out FrostMessage>, KFunction2<Peer, FrostMessage, Unit>>
 
     var keyGenJob: Job? = null
+    var signJob: Job? = null
 
     var agent : SchnorrAgent? = null
     var agentSendChannel = Channel<SchnorrAgentMessage>(1)
@@ -70,6 +103,10 @@ class FrostManager(
     val onJoinRequestResponseCallbacks = mutableMapOf<Int,OnJoinRequestResponseCallback>()
     val onKeyGenCommitmentsCallBacks = mutableMapOf<Int,KeyGenCommitmentsCallaback>()
     val onKeyGenShareCallbacks = mutableMapOf<Int,KeyGenShareCallback>()
+    val onPreprocessCallbacks = mutableMapOf<Int,PreprocessCallback>()
+    val onSignShareCallbacks = mutableMapOf<Int,SignShareCallback>()
+    val onSignRequestCallbacks = mutableMapOf<Int, SignRequestCallback>()
+    val onSignRequestResponseCallbacks = mutableMapOf<Int, SignRequestResponseCallback>()
     private var cbCounter = 0;
 
     fun addJoinRequestResponseCallback(cb: OnJoinRequestResponseCallback) : Int{
@@ -90,7 +127,26 @@ class FrostManager(
     fun removeJoinRequestResponseCallback(id: Int){
         onJoinRequestResponseCallbacks.remove(id)
     }
-
+    fun addSignShareCallback(cb: SignShareCallback) : Int{
+        val id = cbCounter++
+        onSignShareCallbacks[id] = cb
+        return id
+    }
+    fun addPreprocessCallabac(cb: PreprocessCallback) : Int{
+        val id = cbCounter++
+        onPreprocessCallbacks[id] = cb
+        return id
+    }
+    fun addOnSignRequestCallback(cb: SignRequestCallback) : Int{
+        val id = cbCounter++
+        onSignRequestCallbacks[id] = cb
+        return id
+    }
+    fun addOnSignRequestResponseCallbac(cb: SignRequestResponseCallback) : Int{
+        val id = cbCounter++
+        onSignRequestResponseCallbacks[id] = cb
+        return id
+    }
 
     init {
         scope.launch {
@@ -100,6 +156,73 @@ class FrostManager(
                     processMsg(it)
                 }
         }
+
+    }
+
+    suspend fun proposeSign(data: ByteArray){
+        when(state){
+            FrostState.ReadyForSign -> Unit
+            else -> {
+                updatesChannel.emit(Update.TextUpdate("not ready for sign"))
+                return
+            }
+        }
+        val signId = Random.nextLong()
+        state = FrostState.ProposedSign(signId)
+
+
+        var responseCounter = 0
+        val mutex = Mutex(true)
+        val callbacId = addOnSignRequestResponseCallbac { peer, signRequestResponse ->
+            if(signRequestResponse.ok)
+                responseCounter+=1
+            if (responseCounter >= frostInfo!!.threshold - 1){
+                mutex.unlock()
+            }
+        }
+        networkManager.broadcast(SignRequest(signId,data))
+        mutex.lock()// make sure that enough peeps are available
+
+        onSignRequestResponseCallbacks.remove(callbacId)
+
+        Log.d("FROST","started sign")
+        signJob = startSign(signId,data,true)
+
+    }
+
+    private suspend fun startSign(signId: Long,data: ByteArray, isProposer: Boolean = false) = scope.launch {
+        state = FrostState.Sign(signId)
+
+        val mutex = Mutex(true)
+
+        addSignShareCallback{peer, msg ->
+            launch {
+                agentSendChannel.send(SchnorrAgentOutput.SignShare(msg.bytes,frostInfo?.getIndex(peer.mid)!!))
+            }
+        }
+        addPreprocessCallabac { peer, preprocess ->
+            launch {
+                if (!isProposer && mutex.isLocked)
+                    mutex.unlock()
+                agentSendChannel.send(SchnorrAgentOutput.SignPreprocess(preprocess.bytes,frostInfo?.getIndex(peer.mid)!!))
+            }
+        }
+
+        launch {
+            for (output in agentReceiveChannel){
+                when(output){
+                    is SchnorrAgentOutput.SignPreprocess -> networkManager.broadcast(Preprocess(output.preprocess))
+                    is SchnorrAgentOutput.SignShare -> networkManager.broadcast(SignShare(output.share))
+                    is SchnorrAgentOutput.Signature -> updatesChannel.emit(Update.TextUpdate("sign done: ${output.signature.toHex()}"))
+                    else -> {}
+                }
+            }
+        }
+        if(!isProposer)
+            mutex.lock()
+        agent!!.startSigningSession(signId.toInt(),data, byteArrayOf())
+        state = FrostState.ReadyForSign
+        cancel()
 
     }
 
@@ -123,7 +246,7 @@ class FrostManager(
 
         val index = getIndex(networkManager.getMyPeer().mid)
 
-        agent = SchnorrAgent(amount,index,peersInGroup.size / 2, agentSendChannel, agentReceiveChannel)
+        agent = SchnorrAgent(amount,index,peersInGroup.size / 2 + 1, agentSendChannel, agentReceiveChannel)
 
         val mutex = Mutex(true)
         addKeyGenCommitmentsCallbacks{ peer, msg ->
@@ -155,6 +278,18 @@ class FrostManager(
             mutex.lock()
         agent!!.startKeygen()
 
+        this@FrostManager.frostInfo = FrostGroup(
+            (peersInGroup.filter { it.mid != networkManager.getMyPeer().mid }).map {
+                FrostMemberInfo(
+                    it,
+                    getIndex(it.mid)
+                )
+            },
+            index,
+            threshold = peersInGroup.size / 2 + 1
+        )
+
+        state = FrostState.ReadyForSign
         //cancel when done
         cancel()
     }
@@ -205,7 +340,7 @@ class FrostManager(
     private fun processRequestToJoin(peer: Peer, msg: RequestToJoinMessage) {
         when(state){
             FrostState.ReadyForKeyGen, FrostState.ReadyForSign -> {
-                state = FrostState.KeyGenStep1(msg.id)
+                state = FrostState.KeyGen(msg.id)
                 scope.launch {
                     updatesChannel.emit(Update.TextUpdate("started"))
 
@@ -249,6 +384,37 @@ class FrostManager(
     }
     private fun processKeyGenShare(peer: Peer, msg: KeyGenShare){
         onKeyGenShareCallbacks.forEach {
+            it.value(peer,msg)
+        }
+    }
+
+    private fun processSignShare(peer: Peer, msg: SignShare){
+        onSignShareCallbacks.forEach{
+            it.value(peer,msg)
+        }
+    }
+    private fun processPreprocess(peer: Peer, msg: Preprocess){
+        onPreprocessCallbacks.forEach {
+            it.value(peer,msg)
+        }
+    }
+    private fun processSignRequest(peer: Peer, msg: SignRequest){
+        onSignRequestCallbacks.forEach {
+            it.value(peer,msg)
+        }
+        when(state){
+            FrostState.ReadyForSign -> {
+                scope.launch {
+                    updatesChannel.emit(Update.TextUpdate("startet sign"))
+                    networkManager.send(peer,SignRequestResponse(msg.id,true))
+                    startSign(msg.id,msg.data)
+                }
+            }
+                else -> {}
+        }
+    }
+    private fun processSignRequestResponse(peer: Peer, msg: SignRequestResponse){
+        onSignRequestResponseCallbacks.forEach {
             it.value(peer,msg)
         }
     }

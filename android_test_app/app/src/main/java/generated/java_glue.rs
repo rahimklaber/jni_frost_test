@@ -1541,7 +1541,7 @@ pub extern "C" fn Java_generated_SchnorrSignWrapper_do_1sign_11_1preprocess(
 }
 #[allow(non_snake_case, unused_variables, unused_mut, unused_unsafe)]
 #[no_mangle]
-pub extern "C" fn Java_generated_SchnorrSignWrapper_do_1sign_12_1sign(
+pub extern "C" fn Java_generated_SchnorrSignWrapper_do_1sign_12_1sign_1bitcoin(
     env: *mut JNIEnv,
     _: jclass,
     wrapper: jlong,
@@ -1565,7 +1565,33 @@ pub extern "C" fn Java_generated_SchnorrSignWrapper_do_1sign_12_1sign(
     let mut prev_out_script: JavaByteArray = JavaByteArray::new(env, prev_out_script);
     let mut prev_out_script: &[i8] = prev_out_script.to_slice();
     let mut ret: SignResult2 =
-        SchnorrSignWrapper::sign_2_sign(wrapper, params, msg_i8, prev_out_script);
+        SchnorrSignWrapper::sign_2_sign_bitcoin(wrapper, params, msg_i8, prev_out_script);
+    let ret: jlong = <SignResult2>::box_object(ret);
+    ret
+}
+#[allow(non_snake_case, unused_variables, unused_mut, unused_unsafe)]
+#[no_mangle]
+pub extern "C" fn Java_generated_SchnorrSignWrapper_do_1sign_12_1sign_1normal(
+    env: *mut JNIEnv,
+    _: jclass,
+    wrapper: jlong,
+    params: jlong,
+    msg_i8: jbyteArray,
+) -> jlong {
+    let wrapper: *mut SchnorrSignWrapper = unsafe {
+        jlong_to_pointer::<SchnorrSignWrapper>(wrapper)
+            .as_mut()
+            .unwrap()
+    };
+    let wrapper: Box<SchnorrSignWrapper> = unsafe { Box::from_raw(wrapper) };
+    let wrapper: SchnorrSignWrapper = *wrapper;
+    let params: *mut SignParams2 =
+        unsafe { jlong_to_pointer::<SignParams2>(params).as_mut().unwrap() };
+    let params: Box<SignParams2> = unsafe { Box::from_raw(params) };
+    let params: SignParams2 = *params;
+    let mut msg_i8: JavaByteArray = JavaByteArray::new(env, msg_i8);
+    let mut msg_i8: &[i8] = msg_i8.to_slice();
+    let mut ret: SignResult2 = SchnorrSignWrapper::sign_2_sign_normal(wrapper, params, msg_i8);
     let ret: jlong = <SignResult2>::box_object(ret);
     ret
 }
@@ -1862,53 +1888,53 @@ pub extern "C" fn Java_generated_SchnorrSingleSignTest_do_1delete(
     let this: Box<SchnorrSingleSignTest> = unsafe { Box::from_raw(this) };
     drop(this);
 }
-static mut FOREIGN_CLASS_SIGNRESULT2: jclass = ::std::ptr::null_mut();
-static mut FOREIGN_CLASS_SIGNRESULT2_MNATIVEOBJ_FIELD: jfieldID = ::std::ptr::null_mut();
+static mut FOREIGN_CLASS_SIGNPARAMS2: jclass = ::std::ptr::null_mut();
+static mut FOREIGN_CLASS_SIGNPARAMS2_MNATIVEOBJ_FIELD: jfieldID = ::std::ptr::null_mut();
+static mut FOREIGN_CLASS_SCHNORRSINGLESIGNTEST: jclass = ::std::ptr::null_mut();
+static mut FOREIGN_CLASS_SCHNORRSINGLESIGNTEST_MNATIVEOBJ_FIELD: jfieldID = ::std::ptr::null_mut();
+static mut FOREIGN_CLASS_SIGNRESULT1: jclass = ::std::ptr::null_mut();
+static mut FOREIGN_CLASS_SIGNRESULT1_MNATIVEOBJ_FIELD: jfieldID = ::std::ptr::null_mut();
+static mut JAVA_LANG_EXCEPTION: jclass = ::std::ptr::null_mut();
+static mut FOREIGN_CLASS_SCHNORRKEYWRAPPER: jclass = ::std::ptr::null_mut();
+static mut FOREIGN_CLASS_SCHNORRKEYWRAPPER_MNATIVEOBJ_FIELD: jfieldID = ::std::ptr::null_mut();
 static mut FOREIGN_CLASS_RESULTKEYGEN2: jclass = ::std::ptr::null_mut();
 static mut FOREIGN_CLASS_RESULTKEYGEN2_MNATIVEOBJ_FIELD: jfieldID = ::std::ptr::null_mut();
 static mut JAVA_LANG_INTEGER: jclass = ::std::ptr::null_mut();
 static mut JAVA_LANG_INTEGER_INT_VALUE: jmethodID = ::std::ptr::null_mut();
-static mut FOREIGN_CLASS_RESULTKEYGEN1: jclass = ::std::ptr::null_mut();
-static mut FOREIGN_CLASS_RESULTKEYGEN1_MNATIVEOBJ_FIELD: jfieldID = ::std::ptr::null_mut();
-static mut JAVA_LANG_FLOAT: jclass = ::std::ptr::null_mut();
-static mut JAVA_LANG_FLOAT_FLOAT_VALUE: jmethodID = ::std::ptr::null_mut();
-static mut JAVA_LANG_DOUBLE: jclass = ::std::ptr::null_mut();
-static mut JAVA_LANG_DOUBLE_DOUBLE_VALUE_METHOD: jmethodID = ::std::ptr::null_mut();
+static mut FOREIGN_CLASS_SCHNORRSIGNWRAPPER: jclass = ::std::ptr::null_mut();
+static mut FOREIGN_CLASS_SCHNORRSIGNWRAPPER_MNATIVEOBJ_FIELD: jfieldID = ::std::ptr::null_mut();
+static mut FOREIGN_CLASS_PARAMSKEYGEN3: jclass = ::std::ptr::null_mut();
+static mut FOREIGN_CLASS_PARAMSKEYGEN3_MNATIVEOBJ_FIELD: jfieldID = ::std::ptr::null_mut();
+static mut FOREIGN_CLASS_SIGNRESULT2: jclass = ::std::ptr::null_mut();
+static mut FOREIGN_CLASS_SIGNRESULT2_MNATIVEOBJ_FIELD: jfieldID = ::std::ptr::null_mut();
+static mut FOREIGN_CLASS_SCHNORRKEYGENWRAPPER: jclass = ::std::ptr::null_mut();
+static mut FOREIGN_CLASS_SCHNORRKEYGENWRAPPER_MNATIVEOBJ_FIELD: jfieldID = ::std::ptr::null_mut();
 static mut JAVA_UTIL_OPTIONAL_DOUBLE: jclass = ::std::ptr::null_mut();
 static mut JAVA_UTIL_OPTIONAL_DOUBLE_OF: jmethodID = ::std::ptr::null_mut();
 static mut JAVA_UTIL_OPTIONAL_DOUBLE_EMPTY: jmethodID = ::std::ptr::null_mut();
-static mut JAVA_LANG_BYTE: jclass = ::std::ptr::null_mut();
-static mut JAVA_LANG_BYTE_BYTE_VALUE: jmethodID = ::std::ptr::null_mut();
-static mut JAVA_LANG_SHORT: jclass = ::std::ptr::null_mut();
-static mut JAVA_LANG_SHORT_SHORT_VALUE: jmethodID = ::std::ptr::null_mut();
-static mut JAVA_LANG_LONG: jclass = ::std::ptr::null_mut();
-static mut JAVA_LANG_LONG_LONG_VALUE: jmethodID = ::std::ptr::null_mut();
-static mut FOREIGN_CLASS_SIGNRESULT1: jclass = ::std::ptr::null_mut();
-static mut FOREIGN_CLASS_SIGNRESULT1_MNATIVEOBJ_FIELD: jfieldID = ::std::ptr::null_mut();
-static mut FOREIGN_CLASS_SCHNORRKEYGENWRAPPER: jclass = ::std::ptr::null_mut();
-static mut FOREIGN_CLASS_SCHNORRKEYGENWRAPPER_MNATIVEOBJ_FIELD: jfieldID = ::std::ptr::null_mut();
-static mut FOREIGN_CLASS_SCHNORRKEYWRAPPER: jclass = ::std::ptr::null_mut();
-static mut FOREIGN_CLASS_SCHNORRKEYWRAPPER_MNATIVEOBJ_FIELD: jfieldID = ::std::ptr::null_mut();
-static mut FOREIGN_CLASS_PARAMSKEYGEN2: jclass = ::std::ptr::null_mut();
-static mut FOREIGN_CLASS_PARAMSKEYGEN2_MNATIVEOBJ_FIELD: jfieldID = ::std::ptr::null_mut();
+static mut JAVA_LANG_FLOAT: jclass = ::std::ptr::null_mut();
+static mut JAVA_LANG_FLOAT_FLOAT_VALUE: jmethodID = ::std::ptr::null_mut();
+static mut FOREIGN_CLASS_RESULTKEYGEN1: jclass = ::std::ptr::null_mut();
+static mut FOREIGN_CLASS_RESULTKEYGEN1_MNATIVEOBJ_FIELD: jfieldID = ::std::ptr::null_mut();
 static mut JAVA_UTIL_OPTIONAL_LONG: jclass = ::std::ptr::null_mut();
 static mut JAVA_UTIL_OPTIONAL_LONG_OF: jmethodID = ::std::ptr::null_mut();
 static mut JAVA_UTIL_OPTIONAL_LONG_EMPTY: jmethodID = ::std::ptr::null_mut();
-static mut FOREIGN_CLASS_PARAMSKEYGEN3: jclass = ::std::ptr::null_mut();
-static mut FOREIGN_CLASS_PARAMSKEYGEN3_MNATIVEOBJ_FIELD: jfieldID = ::std::ptr::null_mut();
-static mut FOREIGN_CLASS_SCHNORRSIGNWRAPPER: jclass = ::std::ptr::null_mut();
-static mut FOREIGN_CLASS_SCHNORRSIGNWRAPPER_MNATIVEOBJ_FIELD: jfieldID = ::std::ptr::null_mut();
-static mut FOREIGN_CLASS_SCHNORRSINGLESIGNTEST: jclass = ::std::ptr::null_mut();
-static mut FOREIGN_CLASS_SCHNORRSINGLESIGNTEST_MNATIVEOBJ_FIELD: jfieldID = ::std::ptr::null_mut();
+static mut JAVA_LANG_LONG: jclass = ::std::ptr::null_mut();
+static mut JAVA_LANG_LONG_LONG_VALUE: jmethodID = ::std::ptr::null_mut();
+static mut JAVA_LANG_BYTE: jclass = ::std::ptr::null_mut();
+static mut JAVA_LANG_BYTE_BYTE_VALUE: jmethodID = ::std::ptr::null_mut();
 static mut FOREIGN_CLASS_SIGNPARAMS3: jclass = ::std::ptr::null_mut();
 static mut FOREIGN_CLASS_SIGNPARAMS3_MNATIVEOBJ_FIELD: jfieldID = ::std::ptr::null_mut();
-static mut JAVA_LANG_EXCEPTION: jclass = ::std::ptr::null_mut();
+static mut JAVA_LANG_STRING: jclass = ::std::ptr::null_mut();
+static mut JAVA_LANG_SHORT: jclass = ::std::ptr::null_mut();
+static mut JAVA_LANG_SHORT_SHORT_VALUE: jmethodID = ::std::ptr::null_mut();
+static mut JAVA_LANG_DOUBLE: jclass = ::std::ptr::null_mut();
+static mut JAVA_LANG_DOUBLE_DOUBLE_VALUE_METHOD: jmethodID = ::std::ptr::null_mut();
+static mut FOREIGN_CLASS_PARAMSKEYGEN2: jclass = ::std::ptr::null_mut();
+static mut FOREIGN_CLASS_PARAMSKEYGEN2_MNATIVEOBJ_FIELD: jfieldID = ::std::ptr::null_mut();
 static mut JAVA_UTIL_OPTIONAL_INT: jclass = ::std::ptr::null_mut();
 static mut JAVA_UTIL_OPTIONAL_INT_OF: jmethodID = ::std::ptr::null_mut();
 static mut JAVA_UTIL_OPTIONAL_INT_EMPTY: jmethodID = ::std::ptr::null_mut();
-static mut JAVA_LANG_STRING: jclass = ::std::ptr::null_mut();
-static mut FOREIGN_CLASS_SIGNPARAMS2: jclass = ::std::ptr::null_mut();
-static mut FOREIGN_CLASS_SIGNPARAMS2_MNATIVEOBJ_FIELD: jfieldID = ::std::ptr::null_mut();
 #[no_mangle]
 pub extern "system" fn JNI_OnLoad(
     java_vm: *mut JavaVM,
@@ -1929,25 +1955,25 @@ pub extern "system" fn JNI_OnLoad(
     }
     assert!(!env.is_null());
     unsafe {
-        let class_local_ref = (**env).FindClass.unwrap()(env, swig_c_str!("generated/SignResult2"));
+        let class_local_ref = (**env).FindClass.unwrap()(env, swig_c_str!("generated/SignParams2"));
         assert!(
             !class_local_ref.is_null(),
-            concat!("FindClass failed for ", "generated/SignResult2")
+            concat!("FindClass failed for ", "generated/SignParams2")
         );
         let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
         assert!(
             !class.is_null(),
-            concat!("FindClass failed for ", "generated/SignResult2")
+            concat!("FindClass failed for ", "generated/SignParams2")
         );
         (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
-        FOREIGN_CLASS_SIGNRESULT2 = class;
+        FOREIGN_CLASS_SIGNPARAMS2 = class;
         let field_id: jfieldID =
             (**env).GetFieldID.unwrap()(env, class, swig_c_str!("mNativeObj"), swig_c_str!("J"));
         assert!(
             !field_id.is_null(),
             concat!(
                 "GetStaticFieldID for class ",
-                "generated/SignResult2",
+                "generated/SignParams2",
                 " method ",
                 "mNativeObj",
                 " sig ",
@@ -1955,7 +1981,110 @@ pub extern "system" fn JNI_OnLoad(
                 " failed"
             )
         );
-        FOREIGN_CLASS_SIGNRESULT2_MNATIVEOBJ_FIELD = field_id;
+        FOREIGN_CLASS_SIGNPARAMS2_MNATIVEOBJ_FIELD = field_id;
+    }
+    unsafe {
+        let class_local_ref =
+            (**env).FindClass.unwrap()(env, swig_c_str!("generated/SchnorrSingleSignTest"));
+        assert!(
+            !class_local_ref.is_null(),
+            concat!("FindClass failed for ", "generated/SchnorrSingleSignTest")
+        );
+        let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
+        assert!(
+            !class.is_null(),
+            concat!("FindClass failed for ", "generated/SchnorrSingleSignTest")
+        );
+        (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
+        FOREIGN_CLASS_SCHNORRSINGLESIGNTEST = class;
+        let field_id: jfieldID =
+            (**env).GetFieldID.unwrap()(env, class, swig_c_str!("mNativeObj"), swig_c_str!("J"));
+        assert!(
+            !field_id.is_null(),
+            concat!(
+                "GetStaticFieldID for class ",
+                "generated/SchnorrSingleSignTest",
+                " method ",
+                "mNativeObj",
+                " sig ",
+                "J",
+                " failed"
+            )
+        );
+        FOREIGN_CLASS_SCHNORRSINGLESIGNTEST_MNATIVEOBJ_FIELD = field_id;
+    }
+    unsafe {
+        let class_local_ref = (**env).FindClass.unwrap()(env, swig_c_str!("generated/SignResult1"));
+        assert!(
+            !class_local_ref.is_null(),
+            concat!("FindClass failed for ", "generated/SignResult1")
+        );
+        let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
+        assert!(
+            !class.is_null(),
+            concat!("FindClass failed for ", "generated/SignResult1")
+        );
+        (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
+        FOREIGN_CLASS_SIGNRESULT1 = class;
+        let field_id: jfieldID =
+            (**env).GetFieldID.unwrap()(env, class, swig_c_str!("mNativeObj"), swig_c_str!("J"));
+        assert!(
+            !field_id.is_null(),
+            concat!(
+                "GetStaticFieldID for class ",
+                "generated/SignResult1",
+                " method ",
+                "mNativeObj",
+                " sig ",
+                "J",
+                " failed"
+            )
+        );
+        FOREIGN_CLASS_SIGNRESULT1_MNATIVEOBJ_FIELD = field_id;
+    }
+    unsafe {
+        let class_local_ref = (**env).FindClass.unwrap()(env, swig_c_str!("java/lang/Exception"));
+        assert!(
+            !class_local_ref.is_null(),
+            concat!("FindClass failed for ", "java/lang/Exception")
+        );
+        let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
+        assert!(
+            !class.is_null(),
+            concat!("FindClass failed for ", "java/lang/Exception")
+        );
+        (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
+        JAVA_LANG_EXCEPTION = class;
+    }
+    unsafe {
+        let class_local_ref =
+            (**env).FindClass.unwrap()(env, swig_c_str!("generated/SchnorrKeyWrapper"));
+        assert!(
+            !class_local_ref.is_null(),
+            concat!("FindClass failed for ", "generated/SchnorrKeyWrapper")
+        );
+        let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
+        assert!(
+            !class.is_null(),
+            concat!("FindClass failed for ", "generated/SchnorrKeyWrapper")
+        );
+        (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
+        FOREIGN_CLASS_SCHNORRKEYWRAPPER = class;
+        let field_id: jfieldID =
+            (**env).GetFieldID.unwrap()(env, class, swig_c_str!("mNativeObj"), swig_c_str!("J"));
+        assert!(
+            !field_id.is_null(),
+            concat!(
+                "GetStaticFieldID for class ",
+                "generated/SchnorrKeyWrapper",
+                " method ",
+                "mNativeObj",
+                " sig ",
+                "J",
+                " failed"
+            )
+        );
+        FOREIGN_CLASS_SCHNORRKEYWRAPPER_MNATIVEOBJ_FIELD = field_id;
     }
     unsafe {
         let class_local_ref =
@@ -2018,25 +2147,25 @@ pub extern "system" fn JNI_OnLoad(
     }
     unsafe {
         let class_local_ref =
-            (**env).FindClass.unwrap()(env, swig_c_str!("generated/ResultKeygen1"));
+            (**env).FindClass.unwrap()(env, swig_c_str!("generated/SchnorrSignWrapper"));
         assert!(
             !class_local_ref.is_null(),
-            concat!("FindClass failed for ", "generated/ResultKeygen1")
+            concat!("FindClass failed for ", "generated/SchnorrSignWrapper")
         );
         let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
         assert!(
             !class.is_null(),
-            concat!("FindClass failed for ", "generated/ResultKeygen1")
+            concat!("FindClass failed for ", "generated/SchnorrSignWrapper")
         );
         (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
-        FOREIGN_CLASS_RESULTKEYGEN1 = class;
+        FOREIGN_CLASS_SCHNORRSIGNWRAPPER = class;
         let field_id: jfieldID =
             (**env).GetFieldID.unwrap()(env, class, swig_c_str!("mNativeObj"), swig_c_str!("J"));
         assert!(
             !field_id.is_null(),
             concat!(
                 "GetStaticFieldID for class ",
-                "generated/ResultKeygen1",
+                "generated/SchnorrSignWrapper",
                 " method ",
                 "mNativeObj",
                 " sig ",
@@ -2044,69 +2173,96 @@ pub extern "system" fn JNI_OnLoad(
                 " failed"
             )
         );
-        FOREIGN_CLASS_RESULTKEYGEN1_MNATIVEOBJ_FIELD = field_id;
+        FOREIGN_CLASS_SCHNORRSIGNWRAPPER_MNATIVEOBJ_FIELD = field_id;
     }
     unsafe {
-        let class_local_ref = (**env).FindClass.unwrap()(env, swig_c_str!("java/lang/Float"));
+        let class_local_ref =
+            (**env).FindClass.unwrap()(env, swig_c_str!("generated/ParamsKeygen3"));
         assert!(
             !class_local_ref.is_null(),
-            concat!("FindClass failed for ", "java/lang/Float")
+            concat!("FindClass failed for ", "generated/ParamsKeygen3")
         );
         let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
         assert!(
             !class.is_null(),
-            concat!("FindClass failed for ", "java/lang/Float")
+            concat!("FindClass failed for ", "generated/ParamsKeygen3")
         );
         (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
-        JAVA_LANG_FLOAT = class;
-        let method_id: jmethodID =
-            (**env).GetMethodID.unwrap()(env, class, swig_c_str!("floatValue"), swig_c_str!("()F"));
+        FOREIGN_CLASS_PARAMSKEYGEN3 = class;
+        let field_id: jfieldID =
+            (**env).GetFieldID.unwrap()(env, class, swig_c_str!("mNativeObj"), swig_c_str!("J"));
         assert!(
-            !method_id.is_null(),
+            !field_id.is_null(),
             concat!(
-                "GetMethodID for class ",
-                "java/lang/Float",
+                "GetStaticFieldID for class ",
+                "generated/ParamsKeygen3",
                 " method ",
-                "floatValue",
+                "mNativeObj",
                 " sig ",
-                "()F",
+                "J",
                 " failed"
             )
         );
-        JAVA_LANG_FLOAT_FLOAT_VALUE = method_id;
+        FOREIGN_CLASS_PARAMSKEYGEN3_MNATIVEOBJ_FIELD = field_id;
     }
     unsafe {
-        let class_local_ref = (**env).FindClass.unwrap()(env, swig_c_str!("java/lang/Double"));
+        let class_local_ref = (**env).FindClass.unwrap()(env, swig_c_str!("generated/SignResult2"));
         assert!(
             !class_local_ref.is_null(),
-            concat!("FindClass failed for ", "java/lang/Double")
+            concat!("FindClass failed for ", "generated/SignResult2")
         );
         let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
         assert!(
             !class.is_null(),
-            concat!("FindClass failed for ", "java/lang/Double")
+            concat!("FindClass failed for ", "generated/SignResult2")
         );
         (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
-        JAVA_LANG_DOUBLE = class;
-        let method_id: jmethodID = (**env).GetMethodID.unwrap()(
-            env,
-            class,
-            swig_c_str!("doubleValue"),
-            swig_c_str!("()D"),
-        );
+        FOREIGN_CLASS_SIGNRESULT2 = class;
+        let field_id: jfieldID =
+            (**env).GetFieldID.unwrap()(env, class, swig_c_str!("mNativeObj"), swig_c_str!("J"));
         assert!(
-            !method_id.is_null(),
+            !field_id.is_null(),
             concat!(
-                "GetMethodID for class ",
-                "java/lang/Double",
+                "GetStaticFieldID for class ",
+                "generated/SignResult2",
                 " method ",
-                "doubleValue",
+                "mNativeObj",
                 " sig ",
-                "()D",
+                "J",
                 " failed"
             )
         );
-        JAVA_LANG_DOUBLE_DOUBLE_VALUE_METHOD = method_id;
+        FOREIGN_CLASS_SIGNRESULT2_MNATIVEOBJ_FIELD = field_id;
+    }
+    unsafe {
+        let class_local_ref =
+            (**env).FindClass.unwrap()(env, swig_c_str!("generated/SchnorrKeyGenWrapper"));
+        assert!(
+            !class_local_ref.is_null(),
+            concat!("FindClass failed for ", "generated/SchnorrKeyGenWrapper")
+        );
+        let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
+        assert!(
+            !class.is_null(),
+            concat!("FindClass failed for ", "generated/SchnorrKeyGenWrapper")
+        );
+        (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
+        FOREIGN_CLASS_SCHNORRKEYGENWRAPPER = class;
+        let field_id: jfieldID =
+            (**env).GetFieldID.unwrap()(env, class, swig_c_str!("mNativeObj"), swig_c_str!("J"));
+        assert!(
+            !field_id.is_null(),
+            concat!(
+                "GetStaticFieldID for class ",
+                "generated/SchnorrKeyGenWrapper",
+                " method ",
+                "mNativeObj",
+                " sig ",
+                "J",
+                " failed"
+            )
+        );
+        FOREIGN_CLASS_SCHNORRKEYGENWRAPPER_MNATIVEOBJ_FIELD = field_id;
     }
     unsafe {
         let class_local_ref =
@@ -2162,142 +2318,55 @@ pub extern "system" fn JNI_OnLoad(
         JAVA_UTIL_OPTIONAL_DOUBLE_EMPTY = method_id;
     }
     unsafe {
-        let class_local_ref = (**env).FindClass.unwrap()(env, swig_c_str!("java/lang/Byte"));
+        let class_local_ref = (**env).FindClass.unwrap()(env, swig_c_str!("java/lang/Float"));
         assert!(
             !class_local_ref.is_null(),
-            concat!("FindClass failed for ", "java/lang/Byte")
+            concat!("FindClass failed for ", "java/lang/Float")
         );
         let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
         assert!(
             !class.is_null(),
-            concat!("FindClass failed for ", "java/lang/Byte")
+            concat!("FindClass failed for ", "java/lang/Float")
         );
         (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
-        JAVA_LANG_BYTE = class;
+        JAVA_LANG_FLOAT = class;
         let method_id: jmethodID =
-            (**env).GetMethodID.unwrap()(env, class, swig_c_str!("byteValue"), swig_c_str!("()B"));
+            (**env).GetMethodID.unwrap()(env, class, swig_c_str!("floatValue"), swig_c_str!("()F"));
         assert!(
             !method_id.is_null(),
             concat!(
                 "GetMethodID for class ",
-                "java/lang/Byte",
+                "java/lang/Float",
                 " method ",
-                "byteValue",
+                "floatValue",
                 " sig ",
-                "()B",
+                "()F",
                 " failed"
             )
         );
-        JAVA_LANG_BYTE_BYTE_VALUE = method_id;
-    }
-    unsafe {
-        let class_local_ref = (**env).FindClass.unwrap()(env, swig_c_str!("java/lang/Short"));
-        assert!(
-            !class_local_ref.is_null(),
-            concat!("FindClass failed for ", "java/lang/Short")
-        );
-        let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
-        assert!(
-            !class.is_null(),
-            concat!("FindClass failed for ", "java/lang/Short")
-        );
-        (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
-        JAVA_LANG_SHORT = class;
-        let method_id: jmethodID =
-            (**env).GetMethodID.unwrap()(env, class, swig_c_str!("shortValue"), swig_c_str!("()S"));
-        assert!(
-            !method_id.is_null(),
-            concat!(
-                "GetMethodID for class ",
-                "java/lang/Short",
-                " method ",
-                "shortValue",
-                " sig ",
-                "()S",
-                " failed"
-            )
-        );
-        JAVA_LANG_SHORT_SHORT_VALUE = method_id;
-    }
-    unsafe {
-        let class_local_ref = (**env).FindClass.unwrap()(env, swig_c_str!("java/lang/Long"));
-        assert!(
-            !class_local_ref.is_null(),
-            concat!("FindClass failed for ", "java/lang/Long")
-        );
-        let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
-        assert!(
-            !class.is_null(),
-            concat!("FindClass failed for ", "java/lang/Long")
-        );
-        (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
-        JAVA_LANG_LONG = class;
-        let method_id: jmethodID =
-            (**env).GetMethodID.unwrap()(env, class, swig_c_str!("longValue"), swig_c_str!("()J"));
-        assert!(
-            !method_id.is_null(),
-            concat!(
-                "GetMethodID for class ",
-                "java/lang/Long",
-                " method ",
-                "longValue",
-                " sig ",
-                "()J",
-                " failed"
-            )
-        );
-        JAVA_LANG_LONG_LONG_VALUE = method_id;
-    }
-    unsafe {
-        let class_local_ref = (**env).FindClass.unwrap()(env, swig_c_str!("generated/SignResult1"));
-        assert!(
-            !class_local_ref.is_null(),
-            concat!("FindClass failed for ", "generated/SignResult1")
-        );
-        let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
-        assert!(
-            !class.is_null(),
-            concat!("FindClass failed for ", "generated/SignResult1")
-        );
-        (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
-        FOREIGN_CLASS_SIGNRESULT1 = class;
-        let field_id: jfieldID =
-            (**env).GetFieldID.unwrap()(env, class, swig_c_str!("mNativeObj"), swig_c_str!("J"));
-        assert!(
-            !field_id.is_null(),
-            concat!(
-                "GetStaticFieldID for class ",
-                "generated/SignResult1",
-                " method ",
-                "mNativeObj",
-                " sig ",
-                "J",
-                " failed"
-            )
-        );
-        FOREIGN_CLASS_SIGNRESULT1_MNATIVEOBJ_FIELD = field_id;
+        JAVA_LANG_FLOAT_FLOAT_VALUE = method_id;
     }
     unsafe {
         let class_local_ref =
-            (**env).FindClass.unwrap()(env, swig_c_str!("generated/SchnorrKeyGenWrapper"));
+            (**env).FindClass.unwrap()(env, swig_c_str!("generated/ResultKeygen1"));
         assert!(
             !class_local_ref.is_null(),
-            concat!("FindClass failed for ", "generated/SchnorrKeyGenWrapper")
+            concat!("FindClass failed for ", "generated/ResultKeygen1")
         );
         let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
         assert!(
             !class.is_null(),
-            concat!("FindClass failed for ", "generated/SchnorrKeyGenWrapper")
+            concat!("FindClass failed for ", "generated/ResultKeygen1")
         );
         (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
-        FOREIGN_CLASS_SCHNORRKEYGENWRAPPER = class;
+        FOREIGN_CLASS_RESULTKEYGEN1 = class;
         let field_id: jfieldID =
             (**env).GetFieldID.unwrap()(env, class, swig_c_str!("mNativeObj"), swig_c_str!("J"));
         assert!(
             !field_id.is_null(),
             concat!(
                 "GetStaticFieldID for class ",
-                "generated/SchnorrKeyGenWrapper",
+                "generated/ResultKeygen1",
                 " method ",
                 "mNativeObj",
                 " sig ",
@@ -2305,67 +2374,7 @@ pub extern "system" fn JNI_OnLoad(
                 " failed"
             )
         );
-        FOREIGN_CLASS_SCHNORRKEYGENWRAPPER_MNATIVEOBJ_FIELD = field_id;
-    }
-    unsafe {
-        let class_local_ref =
-            (**env).FindClass.unwrap()(env, swig_c_str!("generated/SchnorrKeyWrapper"));
-        assert!(
-            !class_local_ref.is_null(),
-            concat!("FindClass failed for ", "generated/SchnorrKeyWrapper")
-        );
-        let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
-        assert!(
-            !class.is_null(),
-            concat!("FindClass failed for ", "generated/SchnorrKeyWrapper")
-        );
-        (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
-        FOREIGN_CLASS_SCHNORRKEYWRAPPER = class;
-        let field_id: jfieldID =
-            (**env).GetFieldID.unwrap()(env, class, swig_c_str!("mNativeObj"), swig_c_str!("J"));
-        assert!(
-            !field_id.is_null(),
-            concat!(
-                "GetStaticFieldID for class ",
-                "generated/SchnorrKeyWrapper",
-                " method ",
-                "mNativeObj",
-                " sig ",
-                "J",
-                " failed"
-            )
-        );
-        FOREIGN_CLASS_SCHNORRKEYWRAPPER_MNATIVEOBJ_FIELD = field_id;
-    }
-    unsafe {
-        let class_local_ref =
-            (**env).FindClass.unwrap()(env, swig_c_str!("generated/ParamsKeygen2"));
-        assert!(
-            !class_local_ref.is_null(),
-            concat!("FindClass failed for ", "generated/ParamsKeygen2")
-        );
-        let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
-        assert!(
-            !class.is_null(),
-            concat!("FindClass failed for ", "generated/ParamsKeygen2")
-        );
-        (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
-        FOREIGN_CLASS_PARAMSKEYGEN2 = class;
-        let field_id: jfieldID =
-            (**env).GetFieldID.unwrap()(env, class, swig_c_str!("mNativeObj"), swig_c_str!("J"));
-        assert!(
-            !field_id.is_null(),
-            concat!(
-                "GetStaticFieldID for class ",
-                "generated/ParamsKeygen2",
-                " method ",
-                "mNativeObj",
-                " sig ",
-                "J",
-                " failed"
-            )
-        );
-        FOREIGN_CLASS_PARAMSKEYGEN2_MNATIVEOBJ_FIELD = field_id;
+        FOREIGN_CLASS_RESULTKEYGEN1_MNATIVEOBJ_FIELD = field_id;
     }
     unsafe {
         let class_local_ref =
@@ -2421,94 +2430,62 @@ pub extern "system" fn JNI_OnLoad(
         JAVA_UTIL_OPTIONAL_LONG_EMPTY = method_id;
     }
     unsafe {
-        let class_local_ref =
-            (**env).FindClass.unwrap()(env, swig_c_str!("generated/ParamsKeygen3"));
+        let class_local_ref = (**env).FindClass.unwrap()(env, swig_c_str!("java/lang/Long"));
         assert!(
             !class_local_ref.is_null(),
-            concat!("FindClass failed for ", "generated/ParamsKeygen3")
+            concat!("FindClass failed for ", "java/lang/Long")
         );
         let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
         assert!(
             !class.is_null(),
-            concat!("FindClass failed for ", "generated/ParamsKeygen3")
+            concat!("FindClass failed for ", "java/lang/Long")
         );
         (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
-        FOREIGN_CLASS_PARAMSKEYGEN3 = class;
-        let field_id: jfieldID =
-            (**env).GetFieldID.unwrap()(env, class, swig_c_str!("mNativeObj"), swig_c_str!("J"));
+        JAVA_LANG_LONG = class;
+        let method_id: jmethodID =
+            (**env).GetMethodID.unwrap()(env, class, swig_c_str!("longValue"), swig_c_str!("()J"));
         assert!(
-            !field_id.is_null(),
+            !method_id.is_null(),
             concat!(
-                "GetStaticFieldID for class ",
-                "generated/ParamsKeygen3",
+                "GetMethodID for class ",
+                "java/lang/Long",
                 " method ",
-                "mNativeObj",
+                "longValue",
                 " sig ",
-                "J",
+                "()J",
                 " failed"
             )
         );
-        FOREIGN_CLASS_PARAMSKEYGEN3_MNATIVEOBJ_FIELD = field_id;
+        JAVA_LANG_LONG_LONG_VALUE = method_id;
     }
     unsafe {
-        let class_local_ref =
-            (**env).FindClass.unwrap()(env, swig_c_str!("generated/SchnorrSignWrapper"));
+        let class_local_ref = (**env).FindClass.unwrap()(env, swig_c_str!("java/lang/Byte"));
         assert!(
             !class_local_ref.is_null(),
-            concat!("FindClass failed for ", "generated/SchnorrSignWrapper")
+            concat!("FindClass failed for ", "java/lang/Byte")
         );
         let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
         assert!(
             !class.is_null(),
-            concat!("FindClass failed for ", "generated/SchnorrSignWrapper")
+            concat!("FindClass failed for ", "java/lang/Byte")
         );
         (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
-        FOREIGN_CLASS_SCHNORRSIGNWRAPPER = class;
-        let field_id: jfieldID =
-            (**env).GetFieldID.unwrap()(env, class, swig_c_str!("mNativeObj"), swig_c_str!("J"));
+        JAVA_LANG_BYTE = class;
+        let method_id: jmethodID =
+            (**env).GetMethodID.unwrap()(env, class, swig_c_str!("byteValue"), swig_c_str!("()B"));
         assert!(
-            !field_id.is_null(),
+            !method_id.is_null(),
             concat!(
-                "GetStaticFieldID for class ",
-                "generated/SchnorrSignWrapper",
+                "GetMethodID for class ",
+                "java/lang/Byte",
                 " method ",
-                "mNativeObj",
+                "byteValue",
                 " sig ",
-                "J",
+                "()B",
                 " failed"
             )
         );
-        FOREIGN_CLASS_SCHNORRSIGNWRAPPER_MNATIVEOBJ_FIELD = field_id;
-    }
-    unsafe {
-        let class_local_ref =
-            (**env).FindClass.unwrap()(env, swig_c_str!("generated/SchnorrSingleSignTest"));
-        assert!(
-            !class_local_ref.is_null(),
-            concat!("FindClass failed for ", "generated/SchnorrSingleSignTest")
-        );
-        let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
-        assert!(
-            !class.is_null(),
-            concat!("FindClass failed for ", "generated/SchnorrSingleSignTest")
-        );
-        (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
-        FOREIGN_CLASS_SCHNORRSINGLESIGNTEST = class;
-        let field_id: jfieldID =
-            (**env).GetFieldID.unwrap()(env, class, swig_c_str!("mNativeObj"), swig_c_str!("J"));
-        assert!(
-            !field_id.is_null(),
-            concat!(
-                "GetStaticFieldID for class ",
-                "generated/SchnorrSingleSignTest",
-                " method ",
-                "mNativeObj",
-                " sig ",
-                "J",
-                " failed"
-            )
-        );
-        FOREIGN_CLASS_SCHNORRSINGLESIGNTEST_MNATIVEOBJ_FIELD = field_id;
+        JAVA_LANG_BYTE_BYTE_VALUE = method_id;
     }
     unsafe {
         let class_local_ref = (**env).FindClass.unwrap()(env, swig_c_str!("generated/SignParams3"));
@@ -2540,18 +2517,110 @@ pub extern "system" fn JNI_OnLoad(
         FOREIGN_CLASS_SIGNPARAMS3_MNATIVEOBJ_FIELD = field_id;
     }
     unsafe {
-        let class_local_ref = (**env).FindClass.unwrap()(env, swig_c_str!("java/lang/Exception"));
+        let class_local_ref = (**env).FindClass.unwrap()(env, swig_c_str!("java/lang/String"));
         assert!(
             !class_local_ref.is_null(),
-            concat!("FindClass failed for ", "java/lang/Exception")
+            concat!("FindClass failed for ", "java/lang/String")
         );
         let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
         assert!(
             !class.is_null(),
-            concat!("FindClass failed for ", "java/lang/Exception")
+            concat!("FindClass failed for ", "java/lang/String")
         );
         (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
-        JAVA_LANG_EXCEPTION = class;
+        JAVA_LANG_STRING = class;
+    }
+    unsafe {
+        let class_local_ref = (**env).FindClass.unwrap()(env, swig_c_str!("java/lang/Short"));
+        assert!(
+            !class_local_ref.is_null(),
+            concat!("FindClass failed for ", "java/lang/Short")
+        );
+        let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
+        assert!(
+            !class.is_null(),
+            concat!("FindClass failed for ", "java/lang/Short")
+        );
+        (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
+        JAVA_LANG_SHORT = class;
+        let method_id: jmethodID =
+            (**env).GetMethodID.unwrap()(env, class, swig_c_str!("shortValue"), swig_c_str!("()S"));
+        assert!(
+            !method_id.is_null(),
+            concat!(
+                "GetMethodID for class ",
+                "java/lang/Short",
+                " method ",
+                "shortValue",
+                " sig ",
+                "()S",
+                " failed"
+            )
+        );
+        JAVA_LANG_SHORT_SHORT_VALUE = method_id;
+    }
+    unsafe {
+        let class_local_ref = (**env).FindClass.unwrap()(env, swig_c_str!("java/lang/Double"));
+        assert!(
+            !class_local_ref.is_null(),
+            concat!("FindClass failed for ", "java/lang/Double")
+        );
+        let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
+        assert!(
+            !class.is_null(),
+            concat!("FindClass failed for ", "java/lang/Double")
+        );
+        (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
+        JAVA_LANG_DOUBLE = class;
+        let method_id: jmethodID = (**env).GetMethodID.unwrap()(
+            env,
+            class,
+            swig_c_str!("doubleValue"),
+            swig_c_str!("()D"),
+        );
+        assert!(
+            !method_id.is_null(),
+            concat!(
+                "GetMethodID for class ",
+                "java/lang/Double",
+                " method ",
+                "doubleValue",
+                " sig ",
+                "()D",
+                " failed"
+            )
+        );
+        JAVA_LANG_DOUBLE_DOUBLE_VALUE_METHOD = method_id;
+    }
+    unsafe {
+        let class_local_ref =
+            (**env).FindClass.unwrap()(env, swig_c_str!("generated/ParamsKeygen2"));
+        assert!(
+            !class_local_ref.is_null(),
+            concat!("FindClass failed for ", "generated/ParamsKeygen2")
+        );
+        let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
+        assert!(
+            !class.is_null(),
+            concat!("FindClass failed for ", "generated/ParamsKeygen2")
+        );
+        (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
+        FOREIGN_CLASS_PARAMSKEYGEN2 = class;
+        let field_id: jfieldID =
+            (**env).GetFieldID.unwrap()(env, class, swig_c_str!("mNativeObj"), swig_c_str!("J"));
+        assert!(
+            !field_id.is_null(),
+            concat!(
+                "GetStaticFieldID for class ",
+                "generated/ParamsKeygen2",
+                " method ",
+                "mNativeObj",
+                " sig ",
+                "J",
+                " failed"
+            )
+        );
+        FOREIGN_CLASS_PARAMSKEYGEN2_MNATIVEOBJ_FIELD = field_id;
     }
     unsafe {
         let class_local_ref = (**env).FindClass.unwrap()(env, swig_c_str!("java/util/OptionalInt"));
@@ -2605,49 +2674,6 @@ pub extern "system" fn JNI_OnLoad(
         );
         JAVA_UTIL_OPTIONAL_INT_EMPTY = method_id;
     }
-    unsafe {
-        let class_local_ref = (**env).FindClass.unwrap()(env, swig_c_str!("java/lang/String"));
-        assert!(
-            !class_local_ref.is_null(),
-            concat!("FindClass failed for ", "java/lang/String")
-        );
-        let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
-        assert!(
-            !class.is_null(),
-            concat!("FindClass failed for ", "java/lang/String")
-        );
-        (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
-        JAVA_LANG_STRING = class;
-    }
-    unsafe {
-        let class_local_ref = (**env).FindClass.unwrap()(env, swig_c_str!("generated/SignParams2"));
-        assert!(
-            !class_local_ref.is_null(),
-            concat!("FindClass failed for ", "generated/SignParams2")
-        );
-        let class = (**env).NewGlobalRef.unwrap()(env, class_local_ref);
-        assert!(
-            !class.is_null(),
-            concat!("FindClass failed for ", "generated/SignParams2")
-        );
-        (**env).DeleteLocalRef.unwrap()(env, class_local_ref);
-        FOREIGN_CLASS_SIGNPARAMS2 = class;
-        let field_id: jfieldID =
-            (**env).GetFieldID.unwrap()(env, class, swig_c_str!("mNativeObj"), swig_c_str!("J"));
-        assert!(
-            !field_id.is_null(),
-            concat!(
-                "GetStaticFieldID for class ",
-                "generated/SignParams2",
-                " method ",
-                "mNativeObj",
-                " sig ",
-                "J",
-                " failed"
-            )
-        );
-        FOREIGN_CLASS_SIGNPARAMS2_MNATIVEOBJ_FIELD = field_id;
-    }
     SWIG_JNI_VERSION
 }
 #[no_mangle]
@@ -2667,8 +2693,24 @@ pub extern "system" fn JNI_OnUnload(java_vm: *mut JavaVM, _reserved: *mut ::std:
     }
     assert!(!env.is_null());
     unsafe {
-        (**env).DeleteGlobalRef.unwrap()(env, FOREIGN_CLASS_SIGNRESULT2);
-        FOREIGN_CLASS_SIGNRESULT2 = ::std::ptr::null_mut()
+        (**env).DeleteGlobalRef.unwrap()(env, FOREIGN_CLASS_SIGNPARAMS2);
+        FOREIGN_CLASS_SIGNPARAMS2 = ::std::ptr::null_mut()
+    }
+    unsafe {
+        (**env).DeleteGlobalRef.unwrap()(env, FOREIGN_CLASS_SCHNORRSINGLESIGNTEST);
+        FOREIGN_CLASS_SCHNORRSINGLESIGNTEST = ::std::ptr::null_mut()
+    }
+    unsafe {
+        (**env).DeleteGlobalRef.unwrap()(env, FOREIGN_CLASS_SIGNRESULT1);
+        FOREIGN_CLASS_SIGNRESULT1 = ::std::ptr::null_mut()
+    }
+    unsafe {
+        (**env).DeleteGlobalRef.unwrap()(env, JAVA_LANG_EXCEPTION);
+        JAVA_LANG_EXCEPTION = ::std::ptr::null_mut()
+    }
+    unsafe {
+        (**env).DeleteGlobalRef.unwrap()(env, FOREIGN_CLASS_SCHNORRKEYWRAPPER);
+        FOREIGN_CLASS_SCHNORRKEYWRAPPER = ::std::ptr::null_mut()
     }
     unsafe {
         (**env).DeleteGlobalRef.unwrap()(env, FOREIGN_CLASS_RESULTKEYGEN2);
@@ -2679,83 +2721,67 @@ pub extern "system" fn JNI_OnUnload(java_vm: *mut JavaVM, _reserved: *mut ::std:
         JAVA_LANG_INTEGER = ::std::ptr::null_mut()
     }
     unsafe {
-        (**env).DeleteGlobalRef.unwrap()(env, FOREIGN_CLASS_RESULTKEYGEN1);
-        FOREIGN_CLASS_RESULTKEYGEN1 = ::std::ptr::null_mut()
-    }
-    unsafe {
-        (**env).DeleteGlobalRef.unwrap()(env, JAVA_LANG_FLOAT);
-        JAVA_LANG_FLOAT = ::std::ptr::null_mut()
-    }
-    unsafe {
-        (**env).DeleteGlobalRef.unwrap()(env, JAVA_LANG_DOUBLE);
-        JAVA_LANG_DOUBLE = ::std::ptr::null_mut()
-    }
-    unsafe {
-        (**env).DeleteGlobalRef.unwrap()(env, JAVA_UTIL_OPTIONAL_DOUBLE);
-        JAVA_UTIL_OPTIONAL_DOUBLE = ::std::ptr::null_mut()
-    }
-    unsafe {
-        (**env).DeleteGlobalRef.unwrap()(env, JAVA_LANG_BYTE);
-        JAVA_LANG_BYTE = ::std::ptr::null_mut()
-    }
-    unsafe {
-        (**env).DeleteGlobalRef.unwrap()(env, JAVA_LANG_SHORT);
-        JAVA_LANG_SHORT = ::std::ptr::null_mut()
-    }
-    unsafe {
-        (**env).DeleteGlobalRef.unwrap()(env, JAVA_LANG_LONG);
-        JAVA_LANG_LONG = ::std::ptr::null_mut()
-    }
-    unsafe {
-        (**env).DeleteGlobalRef.unwrap()(env, FOREIGN_CLASS_SIGNRESULT1);
-        FOREIGN_CLASS_SIGNRESULT1 = ::std::ptr::null_mut()
-    }
-    unsafe {
-        (**env).DeleteGlobalRef.unwrap()(env, FOREIGN_CLASS_SCHNORRKEYGENWRAPPER);
-        FOREIGN_CLASS_SCHNORRKEYGENWRAPPER = ::std::ptr::null_mut()
-    }
-    unsafe {
-        (**env).DeleteGlobalRef.unwrap()(env, FOREIGN_CLASS_SCHNORRKEYWRAPPER);
-        FOREIGN_CLASS_SCHNORRKEYWRAPPER = ::std::ptr::null_mut()
-    }
-    unsafe {
-        (**env).DeleteGlobalRef.unwrap()(env, FOREIGN_CLASS_PARAMSKEYGEN2);
-        FOREIGN_CLASS_PARAMSKEYGEN2 = ::std::ptr::null_mut()
-    }
-    unsafe {
-        (**env).DeleteGlobalRef.unwrap()(env, JAVA_UTIL_OPTIONAL_LONG);
-        JAVA_UTIL_OPTIONAL_LONG = ::std::ptr::null_mut()
+        (**env).DeleteGlobalRef.unwrap()(env, FOREIGN_CLASS_SCHNORRSIGNWRAPPER);
+        FOREIGN_CLASS_SCHNORRSIGNWRAPPER = ::std::ptr::null_mut()
     }
     unsafe {
         (**env).DeleteGlobalRef.unwrap()(env, FOREIGN_CLASS_PARAMSKEYGEN3);
         FOREIGN_CLASS_PARAMSKEYGEN3 = ::std::ptr::null_mut()
     }
     unsafe {
-        (**env).DeleteGlobalRef.unwrap()(env, FOREIGN_CLASS_SCHNORRSIGNWRAPPER);
-        FOREIGN_CLASS_SCHNORRSIGNWRAPPER = ::std::ptr::null_mut()
+        (**env).DeleteGlobalRef.unwrap()(env, FOREIGN_CLASS_SIGNRESULT2);
+        FOREIGN_CLASS_SIGNRESULT2 = ::std::ptr::null_mut()
     }
     unsafe {
-        (**env).DeleteGlobalRef.unwrap()(env, FOREIGN_CLASS_SCHNORRSINGLESIGNTEST);
-        FOREIGN_CLASS_SCHNORRSINGLESIGNTEST = ::std::ptr::null_mut()
+        (**env).DeleteGlobalRef.unwrap()(env, FOREIGN_CLASS_SCHNORRKEYGENWRAPPER);
+        FOREIGN_CLASS_SCHNORRKEYGENWRAPPER = ::std::ptr::null_mut()
+    }
+    unsafe {
+        (**env).DeleteGlobalRef.unwrap()(env, JAVA_UTIL_OPTIONAL_DOUBLE);
+        JAVA_UTIL_OPTIONAL_DOUBLE = ::std::ptr::null_mut()
+    }
+    unsafe {
+        (**env).DeleteGlobalRef.unwrap()(env, JAVA_LANG_FLOAT);
+        JAVA_LANG_FLOAT = ::std::ptr::null_mut()
+    }
+    unsafe {
+        (**env).DeleteGlobalRef.unwrap()(env, FOREIGN_CLASS_RESULTKEYGEN1);
+        FOREIGN_CLASS_RESULTKEYGEN1 = ::std::ptr::null_mut()
+    }
+    unsafe {
+        (**env).DeleteGlobalRef.unwrap()(env, JAVA_UTIL_OPTIONAL_LONG);
+        JAVA_UTIL_OPTIONAL_LONG = ::std::ptr::null_mut()
+    }
+    unsafe {
+        (**env).DeleteGlobalRef.unwrap()(env, JAVA_LANG_LONG);
+        JAVA_LANG_LONG = ::std::ptr::null_mut()
+    }
+    unsafe {
+        (**env).DeleteGlobalRef.unwrap()(env, JAVA_LANG_BYTE);
+        JAVA_LANG_BYTE = ::std::ptr::null_mut()
     }
     unsafe {
         (**env).DeleteGlobalRef.unwrap()(env, FOREIGN_CLASS_SIGNPARAMS3);
         FOREIGN_CLASS_SIGNPARAMS3 = ::std::ptr::null_mut()
     }
     unsafe {
-        (**env).DeleteGlobalRef.unwrap()(env, JAVA_LANG_EXCEPTION);
-        JAVA_LANG_EXCEPTION = ::std::ptr::null_mut()
-    }
-    unsafe {
-        (**env).DeleteGlobalRef.unwrap()(env, JAVA_UTIL_OPTIONAL_INT);
-        JAVA_UTIL_OPTIONAL_INT = ::std::ptr::null_mut()
-    }
-    unsafe {
         (**env).DeleteGlobalRef.unwrap()(env, JAVA_LANG_STRING);
         JAVA_LANG_STRING = ::std::ptr::null_mut()
     }
     unsafe {
-        (**env).DeleteGlobalRef.unwrap()(env, FOREIGN_CLASS_SIGNPARAMS2);
-        FOREIGN_CLASS_SIGNPARAMS2 = ::std::ptr::null_mut()
+        (**env).DeleteGlobalRef.unwrap()(env, JAVA_LANG_SHORT);
+        JAVA_LANG_SHORT = ::std::ptr::null_mut()
+    }
+    unsafe {
+        (**env).DeleteGlobalRef.unwrap()(env, JAVA_LANG_DOUBLE);
+        JAVA_LANG_DOUBLE = ::std::ptr::null_mut()
+    }
+    unsafe {
+        (**env).DeleteGlobalRef.unwrap()(env, FOREIGN_CLASS_PARAMSKEYGEN2);
+        FOREIGN_CLASS_PARAMSKEYGEN2 = ::std::ptr::null_mut()
+    }
+    unsafe {
+        (**env).DeleteGlobalRef.unwrap()(env, JAVA_UTIL_OPTIONAL_INT);
+        JAVA_UTIL_OPTIONAL_INT = ::std::ptr::null_mut()
     }
 }
