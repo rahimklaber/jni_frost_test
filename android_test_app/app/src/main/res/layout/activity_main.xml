@@ -7,6 +7,7 @@
     tools:context=".MainActivity">
 
     <LinearLayout
+        android:id="@+id/linearLayout"
         android:layout_width="453dp"
         android:layout_height="461dp"
         android:orientation="vertical"
@@ -24,10 +25,11 @@
                 android:id="@+id/JOIN_BUTTON"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
                 android:text="join"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintHorizontal_bias="0.498"
+                app:layout_constraintHorizontal_bias="0.637"
                 app:layout_constraintStart_toStartOf="parent" />
 
             <TextView
@@ -37,45 +39,47 @@
                 android:text="TextView"
                 app:layout_constraintBottom_toTopOf="@+id/FROST_UPDATES"
                 app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintHorizontal_bias="0.429"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent" />
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintVertical_bias="0.504" />
 
             <EditText
                 android:id="@+id/FROST_UPDATES"
                 android:layout_width="223dp"
                 android:layout_height="128dp"
-                android:layout_marginBottom="132dp"
+                android:layout_marginBottom="100dp"
                 android:ems="10"
                 android:gravity="start|top"
                 android:inputType="textMultiLine"
                 android:textSize="12sp"
                 app:layout_constraintBottom_toTopOf="@+id/JOIN_BUTTON"
                 app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintHorizontal_bias="0.755"
+                app:layout_constraintHorizontal_bias="0.408"
                 app:layout_constraintStart_toStartOf="parent" />
 
             <Button
                 android:id="@+id/SIGN_BUTTON"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
                 android:text="sign"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toStartOf="@+id/JOIN_BUTTON"
+                app:layout_constraintHorizontal_bias="0.648"
                 app:layout_constraintStart_toStartOf="parent" />
 
-            <EditText
-                android:id="@+id/SIGN_DATA"
-                android:layout_width="153dp"
-                android:layout_height="49dp"
-                android:ems="10"
-                android:inputType="textPersonName"
-                app:layout_constraintBottom_toTopOf="@+id/SIGN_BUTTON"
-                app:layout_constraintEnd_toStartOf="@+id/FROST_UPDATES"
-                app:layout_constraintHorizontal_bias="0.777"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent" />
         </androidx.constraintlayout.widget.ConstraintLayout>
 
     </LinearLayout>
+
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottomNavigationView"
+        android:layout_width="409dp"
+        android:layout_height="133dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/linearLayout" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

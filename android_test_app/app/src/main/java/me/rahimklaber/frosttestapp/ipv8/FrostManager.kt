@@ -5,8 +5,6 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.sync.Mutex
 import me.rahimklaber.frosttestapp.SchnorrAgent
 import me.rahimklaber.frosttestapp.SchnorrAgentMessage
@@ -14,8 +12,6 @@ import me.rahimklaber.frosttestapp.SchnorrAgentOutput
 import me.rahimklaber.frosttestapp.ipv8.message.*
 import nl.tudelft.ipv8.Peer
 import nl.tudelft.ipv8.util.toHex
-import org.w3c.dom.Text
-import kotlin.math.sign
 import kotlin.random.Random
 import kotlin.reflect.KClass
 import kotlin.reflect.KFunction2
@@ -52,13 +48,33 @@ sealed interface Update{
 
 
 sealed interface FrostState{
-    object NotReady: FrostState
-    data class RequestedToJoin(val id: Long): FrostState
-    object ReadyForKeyGen: FrostState
-    data class KeyGen(val id: Long): FrostState
-    object ReadyForSign: FrostState
-    data class ProposedSign(val id: Long) : FrostState
-    data class Sign(val id: Long): FrostState
+    object NotReady : FrostState {
+        override fun toString(): String = "NotReady"
+    }
+
+    data class RequestedToJoin(val id: Long) : FrostState {
+        override fun toString(): String = "RequestedToJoin($id)"
+    }
+
+    object ReadyForKeyGen : FrostState {
+        override fun toString(): String = "ReadyForKeyGen"
+    }
+
+    data class KeyGen(val id: Long) : FrostState {
+        override fun toString(): String = "KeyGen($id)"
+    }
+
+    object ReadyForSign : FrostState {
+        override fun toString(): String = "ReadyForSign"
+    }
+
+    data class ProposedSign(val id: Long) : FrostState {
+        override fun toString(): String = "ProposedSign($id)"
+    }
+
+    data class Sign(val id: Long) : FrostState {
+        override fun toString(): String = "Sign($id)"
+    }
 }
 
 typealias OnJoinRequestResponseCallback = (Peer, RequestToJoinResponseMessage) -> Unit
@@ -298,6 +314,8 @@ class FrostManager(
         joining = true
         when(state){
             FrostState.NotReady,FrostState.ReadyForKeyGen -> {
+                state = FrostState.KeyGen(joinId)
+                updatesChannel.emit(Update.StartedKeyGen(joinId))
                 networkManager.broadcast(RequestToJoinMessage(joinId))
             }
             else -> {

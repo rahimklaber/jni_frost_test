@@ -1,23 +1,23 @@
 package me.rahimklaber.frosttestapp
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.os.Bundle
 import android.preference.PreferenceManager
 import android.util.Log
-import android.widget.Button
-import android.widget.TextView
-import android.widget.Toast
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.getSystemService
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelProviders
+import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.navigation.findNavController
+import androidx.navigation.ui.AppBarConfiguration
+import androidx.navigation.ui.setupActionBarWithNavController
+import androidx.navigation.ui.setupWithNavController
 import com.squareup.sqldelight.android.AndroidSqliteDriver
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.forEach
-import kotlinx.coroutines.launch
+import dagger.hilt.android.AndroidEntryPoint
+import me.rahimklaber.frosttestapp.databinding.ActivityOverviewBinding
 import me.rahimklaber.frosttestapp.ipv8.FrostCommunity
 import me.rahimklaber.frosttestapp.ipv8.FrostManager
 import me.rahimklaber.frosttestapp.ipv8.NetworkManager
@@ -40,15 +40,15 @@ import nl.tudelft.ipv8.peerdiscovery.strategy.RandomWalk
 import nl.tudelft.ipv8.sqldelight.Database
 import nl.tudelft.ipv8.util.hexToBytes
 import nl.tudelft.ipv8.util.toHex
-import kotlin.math.sign
-import kotlin.random.Random
 
-class MainActivity : AppCompatActivity() {
-    lateinit var frostManager: FrostManager
-    @SuppressLint("MissingInflatedId")
+@AndroidEntryPoint
+class Overview : AppCompatActivity() {
+
+    private lateinit var binding: ActivityOverviewBinding
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        System.loadLibrary("rust_code")
+        initIPv8()
 
         if(android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S){
             ActivityCompat.requestPermissions(this, listOf(
@@ -59,67 +59,22 @@ class MainActivity : AppCompatActivity() {
         }
 
         initIPv8()
-        val frostCommunity = IPv8Android.getInstance().getOverlay<FrostCommunity>()
-            ?: error("FROSTCOMMUNITY should be initialized")
-        frostManager = FrostManager(frostCommunity.channel,
-            networkManager = object : NetworkManager {
-                override fun send(peer: Peer, msg: FrostMessage) {
-                    Log.d("FROST","sending: $msg")
-                    frostCommunity.sendForPublic(peer, msg)
-                }
 
-                override fun broadcast(msg: FrostMessage) {
-                    Log.d("FROST","broadcasting: $msg")
-                    frostCommunity.broadcast(msg)
-                }
+        binding = ActivityOverviewBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-                override fun getMyPeer(): Peer = frostCommunity.myPeer
+        val navView: BottomNavigationView = binding.navView
 
-                override fun getPeerFromMid(mid: String): Peer =
-                    frostCommunity.getPeers().find { it.mid == mid } ?: error("Could not find peer")
-
-            },
-//            getFrostInfo = {
-//                null
-//            }
+        val navController = findNavController(R.id.nav_host_fragment_activity_overview)
+        // Passing each menu ID as a set of Ids because each
+        // menu should be considered as top level destinations.
+        val appBarConfiguration = AppBarConfiguration(
+            setOf(
+                R.id.frostSettings
+            )
         )
-        setContentView(R.layout.activity_main)
-
-        val button = findViewById<Button>(R.id.JOIN_BUTTON)
-        val signbutton= findViewById<Button>(R.id.SIGN_BUTTON)
-        val textview = findViewById<TextView>(R.id.FROST_UPDATES)
-        var peerstestview = findViewById<TextView>(R.id.peers)
-        GlobalScope.launch(Dispatchers.Main) {
-            launch {
-               while(true){
-                   peerstestview.text = ""
-                   peerstestview.text = frostCommunity.getPeers().map {
-                       it.mid
-                   }.joinToString("\n")
-                   delay(2000)
-               }
-            }
-            frostManager.updatesChannel.collect {
-//                Toast.makeText(applicationContext,"$it",Toast.LENGTH_LONG).show()
-                textview.text= "${textview.text}\n $it "
-                Log.d("FROST","RECEIVED U IUPDATE $it")
-            }
-        }
-        button.setOnClickListener {
-
-            GlobalScope.launch {
-                textview.text = "${textview.text}\n started keygen"
-                frostManager.joinGroup()
-            }
-        }
-        signbutton.setOnClickListener {
-            GlobalScope.launch {
-                frostManager.proposeSign(Random.Default.nextBytes(32))
-//                textview.text = "${textview.text}\n started sign"
-                Log.d("FROST", "started sign")
-            }
-        }
-
+        setupActionBarWithNavController(navController, appBarConfiguration)
+        navView.setupWithNavController(navController)
     }
 
     private fun initIPv8() {
@@ -147,7 +102,7 @@ class MainActivity : AppCompatActivity() {
 
     }
 
-    private fun createFrostCommunity() : OverlayConfiguration<FrostCommunity>{
+    private fun createFrostCommunity() : OverlayConfiguration<FrostCommunity> {
         val randomWalk = RandomWalk.Factory()
         val randomChurn = RandomChurn.Factory()
         val periodicSimilarity = PeriodicSimilarity.Factory()
