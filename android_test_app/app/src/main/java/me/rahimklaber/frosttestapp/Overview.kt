@@ -12,6 +12,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelProviders
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.findNavController
+import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.setupActionBarWithNavController
 import androidx.navigation.ui.setupWithNavController
@@ -48,6 +49,7 @@ class Overview : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+//        System.loadLibrary("rust_code")
         initIPv8()
 
         if(android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S){
@@ -65,12 +67,15 @@ class Overview : AppCompatActivity() {
 
         val navView: BottomNavigationView = binding.navView
 
-        val navController = findNavController(R.id.nav_host_fragment_activity_overview)
+//        val navController = findNavController(R.id.nav_host_fragment_activity_overview)
+        val navHostFragment = supportFragmentManager
+            .findFragmentById(R.id.nav_host_fragment_activity_overview) as NavHostFragment
+        val navController = navHostFragment.navController
         // Passing each menu ID as a set of Ids because each
         // menu should be considered as top level destinations.
         val appBarConfiguration = AppBarConfiguration(
             setOf(
-                R.id.frostSettings
+                R.id.frostSettings, R.id.propose
             )
         )
         setupActionBarWithNavController(navController, appBarConfiguration)

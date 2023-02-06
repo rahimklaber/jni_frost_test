@@ -43,6 +43,7 @@ interface NetworkManager{
 sealed interface Update{
     data class KeyGenDone(val pubkey: String) : Update
     data class StartedKeyGen(val id: Long) : Update
+    data class ProposedKeyGen(val id: Long): Update
     data class TextUpdate(val text : String) : Update
 }
 
@@ -74,6 +75,10 @@ sealed interface FrostState{
 
     data class Sign(val id: Long) : FrostState {
         override fun toString(): String = "Sign($id)"
+    }
+
+    data class ProposedJoin(val id: Long) : FrostState{
+        override fun toString(): String = "ProposedJoin($id)"
     }
 }
 
@@ -314,8 +319,8 @@ class FrostManager(
         joining = true
         when(state){
             FrostState.NotReady,FrostState.ReadyForKeyGen -> {
-                state = FrostState.KeyGen(joinId)
-                updatesChannel.emit(Update.StartedKeyGen(joinId))
+                state = FrostState.ProposedJoin(joinId)
+                updatesChannel.emit(Update.ProposedKeyGen(joinId))
                 networkManager.broadcast(RequestToJoinMessage(joinId))
             }
             else -> {
@@ -325,6 +330,7 @@ class FrostManager(
         }
 
         val peersInGroup = waitForJoinResponse(joinId)
+        state = FrostState.KeyGen(joinId)
         keyGenJob =  startKeyGen(joinId,peersInGroup + networkManager.getMyPeer(),true)
         Log.i("FROST","started keygen")
     }
@@ -360,7 +366,7 @@ class FrostManager(
             FrostState.ReadyForKeyGen, FrostState.ReadyForSign -> {
                 state = FrostState.KeyGen(msg.id)
                 scope.launch {
-                    updatesChannel.emit(Update.TextUpdate("started"))
+                    updatesChannel.emit(Update.StartedKeyGen(msg.id))
 
                     networkManager.broadcast(RequestToJoinResponseMessage(msg.id, true, frostInfo?.amount ?: 1,frostInfo?.members?.map { it.peer.mid } ?: listOf(
                         networkManager.getMyPeer().mid

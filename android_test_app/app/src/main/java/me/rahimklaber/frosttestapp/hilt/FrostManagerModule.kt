@@ -4,16 +4,12 @@ import android.util.Log
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
-import dagger.hilt.android.components.ActivityComponent
 import dagger.hilt.components.SingletonComponent
-import me.rahimklaber.frosttestapp.FrostApplication
 import me.rahimklaber.frosttestapp.FrostViewModel
-import me.rahimklaber.frosttestapp.Overview
 import me.rahimklaber.frosttestapp.ipv8.FrostCommunity
 import me.rahimklaber.frosttestapp.ipv8.FrostManager
 import me.rahimklaber.frosttestapp.ipv8.NetworkManager
 import me.rahimklaber.frosttestapp.ipv8.message.FrostMessage
-import me.rahimklaber.frosttestapp.ui.FrostSettings
 import nl.tudelft.ipv8.Peer
 import nl.tudelft.ipv8.android.IPv8Android
 import javax.inject.Singleton
