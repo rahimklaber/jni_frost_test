@@ -49,8 +49,7 @@ class Overview : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-//        System.loadLibrary("rust_code")
-        initIPv8()
+        System.loadLibrary("rust_code")
 
         if(android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S){
             ActivityCompat.requestPermissions(this, listOf(

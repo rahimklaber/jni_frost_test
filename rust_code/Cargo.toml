@@ -14,9 +14,8 @@ crate-type = ["cdylib"]
 static_ssl = ['openssl/vendored']
 
 [dependencies]
-dkg = {git="https://github.com/vrx00/serai", branch="bitcoin-processor"}
-modular-frost = {git="https://github.com/vrx00/serai", branch="bitcoin-processor", features= ["secp256k1"]}
-bitcoin-serai = {git="https://github.com/vrx00/serai", branch="bitcoin-processor"}
+modular-frost = { git = "https://github.com/serai-dex/serai/", rev = "3e66b0a43b70f29e3afb612c1ee4be38427bbda7", features= ["secp256k1"]}
+bitcoin-serai = { git = "https://github.com/serai-dex/serai/", rev = "3e66b0a43b70f29e3afb612c1ee4be38427bbda7"}
 rand = "0.8.5"
 group = "0.12"
 k256 = { version = "0.11", features = ["arithmetic", "keccak256", "ecdsa"] }

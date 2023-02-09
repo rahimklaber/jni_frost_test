@@ -1,33 +1,23 @@
 extern crate core;
 
-use std::{collections::HashMap, f32::consts::E, ops::Index, panic};
-use std::mem::transmute;
-use std::ops::{Add, Neg};
-use std::str::FromStr;
-use std::thread::park;
+use std::{collections::HashMap, panic};
 
-use bitcoin::{OutPoint, PackedLockTime, SchnorrSig, SchnorrSighashType, Script, Transaction, Txid, TxIn, TxOut, Witness};
-use bitcoin::blockdata::constants::COIN_VALUE;
+use bitcoin::{SchnorrSig, SchnorrSighashType, Script, Transaction, TxOut, Witness};
 use bitcoin::consensus::deserialize;
-use bitcoin::hashes::Hash;
 use bitcoin::hashes::hex::FromHex;
-use bitcoin::network::message::NetworkMessage::Tx;
-use bitcoin::psbt::{Input, Psbt};
 use bitcoin::psbt::serialize::{Deserialize, Serialize};
 use bitcoin::schnorr::{TapTweak, TweakedPublicKey};
 use bitcoin::util::sighash;
 use bitcoin::util::sighash::SighashCache;
 use bitcoin::util::taproot::TapTweakHash;
-use bitcoin_serai::crypto::{BitcoinHram, make_even};
-use dkg::{frost::{Commitments, KeyGenMachine, KeyMachine, SecretShare, SecretShareMachine}, ThresholdCore, ThresholdKeys, ThresholdParams};
-use k256::{elliptic_curve::{generic_array::functional::FunctionalSequence, sec1::ToEncodedPoint}, ProjectivePoint, Scalar, schnorr, U256};
+use bitcoin_serai::crypto::{make_even, BitcoinHram};
+use modular_frost::dkg::encryption::{EncryptionKeyMessage, EncryptedMessage};
+use modular_frost::dkg::{frost::{Commitments, KeyGenMachine, KeyMachine, SecretShare, SecretShareMachine}, ThresholdKeys, ThresholdParams};
+use k256::{elliptic_curve::{sec1::ToEncodedPoint}, Scalar, U256};
 use k256::elliptic_curve::ops::Reduce;
-use k256::elliptic_curve::sec1::Tag;
-use modular_frost::{algorithm::{Algorithm, Schnorr}, curve::{Ciphersuite, IetfSecp256k1Hram, Secp256k1}, sign::{self, AlgorithmMachine, AlgorithmSignatureMachine, AlgorithmSignMachine, Params, Preprocess, PreprocessMachine, SignatureMachine, SignMachine, Writable}};
-use modular_frost::algorithm::SchnorrSignature;
+use modular_frost::{algorithm::{ Schnorr}, curve::{Ciphersuite, Secp256k1}, sign::{AlgorithmMachine, AlgorithmSignatureMachine, AlgorithmSignMachine, Preprocess, PreprocessMachine, SignatureMachine, SignMachine, Writable}};
 use rand::rngs::OsRng;
 use secp256k1::{KeyPair, Message, XOnlyPublicKey};
-use secp256k1::Parity::{Even, Odd};
 
 pub use crate::java_glue::*;
 
@@ -305,7 +295,6 @@ impl SchnorrSignWrapper{
                 AlgorithmMachine::new(
                 Schnorr::<Secp256k1, BitcoinHram>::default(),
                 key.clone(),
-                &(1..threshold+1).into_iter().map(|x| x as u16).collect::<Vec<u16>>()[..]
             ).unwrap()),
             sign_machine: None,
             signature_machine: None,
@@ -577,12 +566,12 @@ impl SchnorrKeyGenWrapper{
 
     //Note, the return is a vec with tuples(for which index the share is for, serialized share)
     fn key_gen_2_generate_shares(wrapper: SchnorrKeyGenWrapper, param_wrapper: ParamsKeygen2) -> ResultKeygen2 {
-        let mut commitments_map = HashMap::<u16,Commitments<Secp256k1>>::new();
+        let mut commitments_map = HashMap::<u16,_>::new();
         let commitments = param_wrapper.commitment_user_indices.iter().zip(param_wrapper.commitments);
         commitments
         .for_each(|(i,bytes_i8)|{
             let bytes: Vec<u8> = bytes_i8.iter().map(|&x| x as u8).collect();
-            let commitment = Commitments::<Secp256k1>::read::<&[u8]>(& mut bytes.as_ref(), wrapper.key_params.clone()).unwrap();
+            let commitment = EncryptionKeyMessage::<Secp256k1,Commitments<Secp256k1>>::read::<&[u8]>(& mut bytes.as_ref(), wrapper.key_params.clone()).unwrap();
             commitments_map.insert(*i, commitment);
         });
 
@@ -614,16 +603,19 @@ impl SchnorrKeyGenWrapper{
 
     // shares are the shares the others created for us
     fn key_gen_3_complete(wrapper: SchnorrKeyGenWrapper, param_wrapper: ParamsKeygen3) -> SchnorrKeyWrapper {
-        let mut shares_map = HashMap::<u16,SecretShare::<<modular_frost::curve::Secp256k1 as Ciphersuite>::F>>::new();
+        let mut shares_map = HashMap::<u16,_>::new();
         let shares = param_wrapper.shares_user_indices.iter().zip(param_wrapper.shares);
         shares
         .for_each(|(from,bytes_i8)|{
             let bytes: Vec<u8> = bytes_i8.iter().map(|&x| x as u8).collect();
-            let share = SecretShare::<<modular_frost::curve::Secp256k1 as Ciphersuite>::F>::read::<&[u8]>(&mut bytes.as_ref()).unwrap();
+            let share = EncryptedMessage::<Secp256k1, SecretShare<<modular_frost::curve::Secp256k1 as Ciphersuite>::F>>::read::<&[u8]>(&mut bytes.as_ref(), wrapper.key_params.clone()).unwrap();
             shares_map.insert(*from, share);
         });
 
-        let core = wrapper.key_machine.unwrap().complete(&mut OsRng, shares_map).unwrap();
+        let blame_machine = wrapper.key_machine.unwrap().calculate_share(&mut OsRng, shares_map).unwrap();
+
+        let core = blame_machine.complete();
+
         let mut key = ThresholdKeys::new(core);
 
 

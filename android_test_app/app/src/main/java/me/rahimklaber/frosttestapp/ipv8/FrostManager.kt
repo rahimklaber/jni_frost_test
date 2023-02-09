@@ -288,7 +288,10 @@ class FrostManager(
                 when(agentOutput){
                     is SchnorrAgentOutput.DkgShare -> networkManager.send(networkManager.getPeerFromMid(getMidFromIndex(agentOutput.forIndex)),KeyGenShare(joinId,agentOutput.share))
                     is SchnorrAgentOutput.KeyCommitment -> networkManager.broadcast(KeyGenCommitments(joinId,agentOutput.commitment))
-                    is SchnorrAgentOutput.KeyGenDone -> updatesChannel.emit(Update.KeyGenDone(agentOutput.pubkey.toHex()))
+                    is SchnorrAgentOutput.KeyGenDone -> {
+                        state = FrostState.ReadyForSign
+                        updatesChannel.emit(Update.KeyGenDone(agentOutput.pubkey.toHex()))
+                    }
                     else -> {
                         error("RCEIVED OUTPUT FOR SIGNING WHILE DOING KEYGEN. SHOULD NOT HAPPEN")
                     }
@@ -317,18 +320,17 @@ class FrostManager(
     suspend fun joinGroup(){
         joinId = Random.nextLong()
         joining = true
-        when(state){
-            FrostState.NotReady,FrostState.ReadyForKeyGen -> {
-                state = FrostState.ProposedJoin(joinId)
-                updatesChannel.emit(Update.ProposedKeyGen(joinId))
-                networkManager.broadcast(RequestToJoinMessage(joinId))
-            }
-            else -> {
-                return
-                // send update to UI?
-            }
+        if (!(state == FrostState.NotReady || state == FrostState.ReadyForKeyGen)) {
+            return
         }
+        state = FrostState.ProposedJoin(joinId)
+        updatesChannel.emit(Update.ProposedKeyGen(joinId))
 
+        scope.launch(Dispatchers.Default) {
+            // delay to start waiting before sending msg
+            delay(1000)
+            networkManager.broadcast(RequestToJoinMessage(joinId))
+        }
         val peersInGroup = waitForJoinResponse(joinId)
         state = FrostState.KeyGen(joinId)
         keyGenJob =  startKeyGen(joinId,peersInGroup + networkManager.getMyPeer(),true)
@@ -368,11 +370,14 @@ class FrostManager(
                 scope.launch {
                     updatesChannel.emit(Update.StartedKeyGen(msg.id))
 
-                    networkManager.broadcast(RequestToJoinResponseMessage(msg.id, true, frostInfo?.amount ?: 1,frostInfo?.members?.map { it.peer.mid } ?: listOf(
-                        networkManager.getMyPeer().mid
-                    )))
+                    networkManager.broadcast(RequestToJoinResponseMessage(msg.id, true, frostInfo?.amount ?: 1,
+                        (frostInfo?.members?.map { it.peer.mid }
+                            ?.plus(networkManager.getMyPeer().mid))
+                            ?: listOf(
+                                networkManager.getMyPeer().mid
+                            )))
                     keyGenJob = startKeyGen(msg.id,
-                        frostInfo?.members?.map(FrostMemberInfo::peer)?.plus(peer)
+                        frostInfo?.members?.map(FrostMemberInfo::peer)?.plus(peer)?.plus(networkManager.getMyPeer())
                             ?: (listOf(networkManager.getMyPeer()) + peer)
                     )
                 }

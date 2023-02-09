@@ -13,7 +13,7 @@ use bitcoin::util::sighash::Error::WrongAnnex;
 use bitcoin::util::sighash::SighashCache;
 use bitcoin::util::taproot::{TaprootBuilder, TapTweakHash};
 use bitcoin_serai::crypto::{BitcoinHram, make_even};
-use dkg::frost::Commitments;
+use modular_frost::dkg::frost::Commitments;
 use k256::elliptic_curve::ops::Reduce;
 use k256::elliptic_curve::sec1::ToEncodedPoint;
 use k256::{Scalar, U256};

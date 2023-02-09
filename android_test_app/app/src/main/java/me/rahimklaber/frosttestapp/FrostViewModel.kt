@@ -87,7 +87,9 @@ class FrostViewModel(
                     is Update.KeyGenDone, is Update.StartedKeyGen, is Update.ProposedKeyGen-> {
                         refreshFrostData()
                     }
-                    is Update.TextUpdate -> TODO()
+                    is Update.TextUpdate -> {
+
+                    }
                 }
             }
         }
