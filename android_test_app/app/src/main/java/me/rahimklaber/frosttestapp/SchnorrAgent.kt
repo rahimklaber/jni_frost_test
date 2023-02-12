@@ -127,7 +127,10 @@ class SchnorrAgent(
         outputChannel.send(SchnorrAgentOutput.KeyGenDone(index, keyWrapper._bitcoin_encoded_key))
     }
 
-    suspend fun startSigningSession(sessionId: Int, msg: ByteArray, prevoutScript: ByteArray) = coroutineScope{
+    suspend fun startSigningSession(sessionId: Int, msg: ByteArray, prevoutScript: ByteArray,
+                                    receiveChannel: ReceiveChannel<SchnorrAgentMessage>,
+                                    outputChannel: SendChannel<SchnorrAgentOutput>
+                                    ) = coroutineScope{
         val param_sign_2_msgs = mutableListOf<SchnorrAgentOutput.SignPreprocess>()
         val param_sign_3_msgs = mutableListOf<SchnorrAgentOutput.SignShare>()
         val mutex = Mutex(true)

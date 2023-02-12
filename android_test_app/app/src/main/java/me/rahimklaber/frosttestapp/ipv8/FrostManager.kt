@@ -12,6 +12,7 @@ import me.rahimklaber.frosttestapp.SchnorrAgentOutput
 import me.rahimklaber.frosttestapp.ipv8.message.*
 import nl.tudelft.ipv8.Peer
 import nl.tudelft.ipv8.util.toHex
+import kotlin.math.sign
 import kotlin.random.Random
 import kotlin.reflect.KClass
 import kotlin.reflect.KFunction2
@@ -44,6 +45,8 @@ sealed interface Update{
     data class KeyGenDone(val pubkey: String) : Update
     data class StartedKeyGen(val id: Long) : Update
     data class ProposedKeyGen(val id: Long): Update
+    data class SignRequestReceived(val id: Long, val fromMid: String ,val data: ByteArray) : Update
+    data class SignDone(val id: Long, val signature: String) : Update
     data class TextUpdate(val text : String) : Update
 }
 
@@ -114,6 +117,8 @@ class FrostManager(
     var keyGenJob: Job? = null
     var signJob: Job? = null
 
+    val signJobs = mutableMapOf<Long, Job>()
+
     var agent : SchnorrAgent? = null
     var agentSendChannel = Channel<SchnorrAgentMessage>(1)
     var agentReceiveChannel = Channel<SchnorrAgentOutput>(1)
@@ -180,68 +185,184 @@ class FrostManager(
 
     }
 
-    suspend fun proposeSign(data: ByteArray){
-        when(state){
-            FrostState.ReadyForSign -> Unit
-            else -> {
-                updatesChannel.emit(Update.TextUpdate("not ready for sign"))
-                return
-            }
+    suspend fun proposeSignAsync(data: ByteArray): Pair<Boolean,Long> {
+        // we want to make multiple props at the same time?
+        if(state !is FrostState.ReadyForSign){
+            return false to 0
         }
+
         val signId = Random.nextLong()
-        state = FrostState.ProposedSign(signId)
+//        state = FrostState.ProposedSign(signId)
 
-
-        var responseCounter = 0
-        val mutex = Mutex(true)
-        val callbacId = addOnSignRequestResponseCallbac { peer, signRequestResponse ->
-            if(signRequestResponse.ok)
-                responseCounter+=1
-            if (responseCounter >= frostInfo!!.threshold - 1){
-                mutex.unlock()
+        val job = scope.launch {
+            var responseCounter = 0
+            val mutex = Mutex(true)
+            val participatingIndices = mutableListOf<Int>()
+            val callbacId = addOnSignRequestResponseCallbac { peer, signRequestResponse ->
+                if (signRequestResponse.id != signId){
+                    return@addOnSignRequestResponseCallbac
+                }
+                if (signRequestResponse.ok)
+                    responseCounter += 1
+                participatingIndices.add(
+                    frostInfo?.getIndex(peer.mid)
+                        ?: error(" FrostInfo is null. This is a bug. Maybe you are trying to sign without having first joined a group")
+                )
+                if (responseCounter >= frostInfo!!.threshold - 1) {
+                    mutex.unlock()
+                }
             }
+            networkManager.broadcast(SignRequest(signId, data))
+            mutex.lock()// make sure that enough peeps are available
+
+            onSignRequestResponseCallbacks.remove(callbacId)
+
+            Log.d("FROST", "started sign")
+
+            val agentSendChannel = Channel<SchnorrAgentMessage>(1)
+            val agentReceiveChannel = Channel<SchnorrAgentOutput>(1)
+
+            signJob = startSign(
+                signId, data,
+                agentSendChannel, agentReceiveChannel,
+                true,
+                (participatingIndices.plus(
+                    frostInfo?.myIndex
+                        ?: error(" FrostInfo is null. This is a bug. Maybe you are trying to sign without having first joined a group")
+                ))
+            )
         }
-        networkManager.broadcast(SignRequest(signId,data))
-        mutex.lock()// make sure that enough peeps are available
 
-        onSignRequestResponseCallbacks.remove(callbacId)
-
-        Log.d("FROST","started sign")
-        signJob = startSign(signId,data,true)
-
+        signJobs[signId] = job
+        return true to signId
     }
 
-    private suspend fun startSign(signId: Long,data: ByteArray, isProposer: Boolean = false) = scope.launch {
+    suspend fun acceptProposedSign(id: Long, fromMid: String, data: ByteArray){
+        networkManager.send(networkManager.getPeerFromMid(fromMid),SignRequestResponse(id,true))
+        val agentSendChannel = Channel<SchnorrAgentMessage>(1)
+        val agentReceiveChannel = Channel<SchnorrAgentOutput>(1)
+
+        signJobs[id] = startSign(
+            id,
+            data,
+            agentSendChannel, agentReceiveChannel
+        )
+    }
+
+
+//    suspend fun proposeSign(data: ByteArray){
+//        when(state){
+//            FrostState.ReadyForSign -> Unit
+//            else -> {
+//                updatesChannel.emit(Update.TextUpdate("not ready for sign"))
+//                return
+//            }
+//        }
+//        val signId = Random.nextLong()
+//        state = FrostState.ProposedSign(signId)
+//
+//
+//        var responseCounter = 0
+//        val mutex = Mutex(true)
+//        val participatingIndices = mutableListOf<Int>()
+//        val callbacId = addOnSignRequestResponseCallbac { peer, signRequestResponse ->
+//            if (signRequestResponse.ok)
+//                responseCounter += 1
+//            participatingIndices.add(
+//                frostInfo?.getIndex(peer.mid)
+//                    ?: error(" FrostInfo is null. This is a bug. Maybe you are trying to sign without having first joined a group")
+//            )
+//            if (responseCounter >= frostInfo!!.threshold - 1) {
+//                mutex.unlock()
+//            }
+//        }
+//        networkManager.broadcast(SignRequest(signId, data))
+//        mutex.lock()// make sure that enough peeps are available
+//
+//        onSignRequestResponseCallbacks.remove(callbacId)
+//
+//        Log.d("FROST", "started sign")
+//         startSign(
+//            signId, data, true,
+//            (participatingIndices.plus(
+//                frostInfo?.myIndex
+//                    ?: error(" FrostInfo is null. This is a bug. Maybe you are trying to sign without having first joined a group")
+//            ))
+//        )
+//
+//    }
+
+    private suspend fun startSign(
+        signId: Long,
+        data: ByteArray,
+        agentSendChannel : Channel<SchnorrAgentMessage> ,
+        agentReceiveChannel :  Channel<SchnorrAgentOutput>,
+        isProposer: Boolean = false,
+        participantIndices: List<Int> = listOf(),
+    ) = scope.launch {
         state = FrostState.Sign(signId)
 
         val mutex = Mutex(true)
 
-        addSignShareCallback{peer, msg ->
+        // whether we received a preprocess msg from the initiator
+        // this signals the other peers to start
+        var receivedFromInitiator = false
+        val participantIndices = participantIndices.toMutableList()
+
+        addSignShareCallback { peer, msg ->
+            if (msg.id  != signId)
+                return@addSignShareCallback
             launch {
-                agentSendChannel.send(SchnorrAgentOutput.SignShare(msg.bytes,frostInfo?.getIndex(peer.mid)!!))
+                agentSendChannel.send(
+                    SchnorrAgentOutput.SignShare(
+                        msg.bytes,
+                        frostInfo?.getIndex(peer.mid)!!
+                    )
+                )
             }
         }
         addPreprocessCallabac { peer, preprocess ->
+            if(preprocess.id != signId){
+                return@addPreprocessCallabac
+            }
             launch {
-                if (!isProposer && mutex.isLocked)
+                if (!isProposer && mutex.isLocked && preprocess.participants.isNotEmpty()) { // only the init message has size > 0
                     mutex.unlock()
-                agentSendChannel.send(SchnorrAgentOutput.SignPreprocess(preprocess.bytes,frostInfo?.getIndex(peer.mid)!!))
+                    receivedFromInitiator = true
+                    participantIndices.addAll(preprocess.participants)
+                }
+                agentSendChannel.send(
+                    SchnorrAgentOutput.SignPreprocess(
+                        preprocess.bytes,
+                        frostInfo?.getIndex(peer.mid)!!,
+                    )
+                )
             }
         }
 
         launch {
             for (output in agentReceiveChannel){
-                when(output){
-                    is SchnorrAgentOutput.SignPreprocess -> networkManager.broadcast(Preprocess(output.preprocess))
-                    is SchnorrAgentOutput.SignShare -> networkManager.broadcast(SignShare(output.share))
-                    is SchnorrAgentOutput.Signature -> updatesChannel.emit(Update.TextUpdate("sign done: ${output.signature.toHex()}"))
+                when (output) {
+                    is SchnorrAgentOutput.SignPreprocess -> sendToParticipants(participantIndices,
+                        Preprocess(
+                            signId,
+                            output.preprocess,
+                            if (isProposer) {
+                                participantIndices
+                            } else {
+                                listOf()
+                            }
+                        )
+                    )
+                    is SchnorrAgentOutput.SignShare -> sendToParticipants(participantIndices,SignShare(signId,output.share))
+                    is SchnorrAgentOutput.Signature -> updatesChannel.emit(Update.SignDone(signId,output.signature.toHex()))
                     else -> {}
                 }
             }
         }
         if(!isProposer)
             mutex.lock()
-        agent!!.startSigningSession(signId.toInt(),data, byteArrayOf())
+        agent!!.startSigningSession(signId.toInt(),data, byteArrayOf(), agentSendChannel,agentReceiveChannel)
         state = FrostState.ReadyForSign
         cancel()
 
@@ -391,6 +512,13 @@ class FrostManager(
         }
     }
 
+    private fun sendToParticipants(participantIndices: List<Int>, frostMessage: FrostMessage){
+        (participantIndices - (frostInfo?.myIndex ?: error("frostinfo is null. this is a bug.")))
+            .forEach{
+            networkManager.send(networkManager.getPeerFromMid(frostInfo?.getMidForIndex(it) ?: error("frostinfo null, this is a bug")), frostMessage)
+        }
+    }
+
     private fun processRequestToJoinResponse(peer: Peer, msg: RequestToJoinResponseMessage) {
         onJoinRequestResponseCallbacks.forEach {
             it.value(peer,msg)
@@ -434,9 +562,10 @@ class FrostManager(
         when(state){
             FrostState.ReadyForSign -> {
                 scope.launch {
-                    updatesChannel.emit(Update.TextUpdate("startet sign"))
-                    networkManager.send(peer,SignRequestResponse(msg.id,true))
-                    startSign(msg.id,msg.data)
+                    updatesChannel.emit(Update.SignRequestReceived(msg.id,peer.mid,msg.data))
+//                    updatesChannel.emit(Update.TextUpdate("startet sign"))
+//                    networkManager.send(peer,SignRequestResponse(msg.id,true))
+//                    startSign(msg.id,msg.data)
                 }
             }
                 else -> {}

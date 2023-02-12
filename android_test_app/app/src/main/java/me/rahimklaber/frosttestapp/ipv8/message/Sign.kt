@@ -1,61 +1,85 @@
 package me.rahimklaber.frosttestapp.ipv8.message
 
+import android.util.Log
 import nl.tudelft.ipv8.messaging.Deserializable
 import nl.tudelft.ipv8.util.hexToBytes
 import nl.tudelft.ipv8.util.toHex
 
-data class Preprocess(val bytes: ByteArray) : FrostMessage {
+data class Preprocess(val id:Long, val bytes: ByteArray, val participants: List<Int> = listOf()) : FrostMessage {
+
+    override fun serialize(): ByteArray {
+        return "$id#${bytes.toHex()}#${participants.joinToString(",")}".toByteArray(Charsets.UTF_8)
+    }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
 
         other as Preprocess
 
+        if (id != other.id) return false
         if (!bytes.contentEquals(other.bytes)) return false
+        if (participants != other.participants) return false
 
         return true
     }
 
     override fun hashCode(): Int {
-        return bytes.contentHashCode()
+        var result = id.hashCode()
+        result = 31 * result + bytes.contentHashCode()
+        result = 31 * result + participants.hashCode()
+        return result
     }
 
-    override fun serialize(): ByteArray {
-        return bytes
-    }
+
     companion object Deserializer : Deserializable<Preprocess>{
         const val MESSAGE_ID = 4;
         override fun deserialize(buffer: ByteArray, offset: Int): Pair<Preprocess, Int> {
-            return Preprocess(buffer.slice(offset until buffer.size).toByteArray()) to buffer.size
+            val arr = buffer.slice(offset until buffer.size).toByteArray().toString(Charsets.UTF_8)
+            val (idstr,preprocess_hex, list_str) = arr.split("#")
+
+            Log.d("FROST", list_str)
+
+            return Preprocess(
+                idstr.toLong(),
+                preprocess_hex.hexToBytes(),
+                if (list_str.isBlank()) listOf() else list_str.split(",").map(String::toInt)
+            ) to buffer.size
 
         }
 
     }
 }
-data class SignShare(val bytes: ByteArray) : FrostMessage {
+data class SignShare(val id: Long, val bytes: ByteArray) : FrostMessage {
+
+
+    override fun serialize(): ByteArray {
+        return "$id#${bytes.toHex()}".toByteArray(Charsets.UTF_8)
+    }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
 
         other as SignShare
 
+        if (id != other.id) return false
         if (!bytes.contentEquals(other.bytes)) return false
 
         return true
     }
 
     override fun hashCode(): Int {
-        return bytes.contentHashCode()
-    }
-
-    override fun serialize(): ByteArray {
-        return bytes
+        var result = id.hashCode()
+        result = 31 * result + bytes.contentHashCode()
+        return result
     }
 
     companion object Deserializer : Deserializable<SignShare>{
         const val MESSAGE_ID = 5;
         override fun deserialize(buffer: ByteArray, offset: Int): Pair<SignShare, Int> {
-            return SignShare(buffer.slice(offset until buffer.size).toByteArray()) to buffer.size
+            val (idstr, byteshex) = buffer.slice(offset until buffer.size).toByteArray().toString(Charsets.UTF_8).split("#")
+            return SignShare(idstr.toLong(),byteshex.hexToBytes()) to buffer.size
         }
 
     }

@@ -60,7 +60,7 @@ class Propose : Fragment() {
 
                         Button(onClick = {
                             frostViewModel.viewModelScope.launch (Dispatchers.Default){
-                                frostViewModel.frostManager.proposeSign(Random.nextBytes(32))
+                                frostViewModel.proposeSign(Random.nextBytes(32))
                             }
                         }) {
                             Text("Propose")

@@ -11,7 +11,7 @@ data class RequestToJoinResponseMessage(
     val  memberMids: List<String>
 ) : FrostMessage{
     override fun serialize(): ByteArray {
-        return "$id#$ok#$amountOfMembers#${memberMids.joinToString()}".toByteArray()
+        return "$id#$ok#$amountOfMembers#${memberMids.joinToString(",")}".toByteArray()
     }
 
     companion object Deserializer: Deserializable<RequestToJoinResponseMessage>{

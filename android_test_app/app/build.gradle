@@ -104,6 +104,7 @@ dependencies {
     implementation "com.squareup.sqldelight:android-driver:1.2.1"
     implementation "com.squareup.sqldelight:coroutines-extensions:1.2.1"
     implementation 'uk.uuid.slf4j:slf4j-android:1.7.30-0'
+    implementation "org.jetbrains.kotlin:kotlin-script-runtime:1.7.10"
 }
 
 kapt {

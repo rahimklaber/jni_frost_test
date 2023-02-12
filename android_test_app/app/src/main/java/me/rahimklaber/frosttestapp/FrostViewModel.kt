@@ -18,6 +18,7 @@ import me.rahimklaber.frosttestapp.ipv8.FrostCommunity
 import me.rahimklaber.frosttestapp.ipv8.FrostManager
 import me.rahimklaber.frosttestapp.ipv8.Update
 import me.rahimklaber.frosttestapp.ipv8.message.*
+import kotlin.math.sign
 
 sealed interface Proposal{
     val fromMid: String
@@ -26,8 +27,11 @@ sealed interface Proposal{
 }
 
 data class SignProposal(
+    val id: Long,
     override val fromMid: String,
-    val msg: ByteArray
+    val msg: ByteArray,
+    val signed: Boolean = false,
+    val signatureHex: String = ""
 ) : Proposal {
     override fun type(): String = "Sign"
 }
@@ -38,6 +42,7 @@ data class JoinProposal(
     override fun type(): String = "Join"
 
 }
+
 
 
 class FrostViewModel(
@@ -51,8 +56,10 @@ class FrostViewModel(
 
     private var _peers = mutableStateOf<List<String>>(listOf())
     val peers by _peers
+
     //todo figure out how to hide this from consumers and make it a non-mutable list
     val proposals = mutableStateListOf<Proposal>()
+    val myProposals = mutableStateListOf<Proposal>()
 
     init {
         viewModelScope.launch(Dispatchers.Default) {
@@ -60,6 +67,7 @@ class FrostViewModel(
             launch {
                 while (true){
                     delay(5000)
+                    refreshFrostData()
                     _peers.value = frostCommunity.getPeers().map { it.mid }
                 }
             }
@@ -72,10 +80,10 @@ class FrostViewModel(
                     .collect{
                         when(it.second){
                             is RequestToJoinMessage -> {
-                                proposals.add(JoinProposal(it.first.mid))
+//                                proposals.add(JoinProposal(it.first.mid))
                             }
                             is SignRequest -> {
-                                proposals.add(SignProposal(it.first.mid, (it.second as SignRequest).data))
+                                proposals.add(SignProposal((it.second as SignRequest).id,it.first.mid, (it.second as SignRequest).data))
                             }
                             else -> Unit
                         }
@@ -89,6 +97,66 @@ class FrostViewModel(
                     }
                     is Update.TextUpdate -> {
 
+                    }
+                    is Update.SignRequestReceived -> {
+                        val prop = SignProposal(it.id,it.fromMid,it.data)
+                        val found = proposals.find {checkprop ->
+                            checkprop is SignProposal && checkprop.id == prop.id
+                        }
+                        if (found == null){
+                            proposals.add(prop)
+                        }
+                    }
+                    is Update.SignDone -> {
+                        refreshFrostData()
+                        val update = it
+                        val foundInMyProps = myProposals.find { prop ->
+                            if(prop is SignProposal){
+                                prop.id == update.id
+                            }else{
+                                false
+                            }
+                        } as SignProposal?
+                        if (foundInMyProps != null){
+                            myProposals.removeIf { prop ->
+                                if(prop is SignProposal){
+                                prop.id == update.id
+                            }else{
+                                false
+                                }
+                            }
+                            myProposals.add(
+                                foundInMyProps.copy(
+                                    signed = true,
+                                    signatureHex = update.signature
+                                )
+                            )
+                            return@collect
+                        }
+
+                        val foundInProps = proposals.find { prop ->
+                            if(prop is SignProposal){
+                                prop.id == update.id
+                            }else{
+                                false
+                            }
+                        } as SignProposal?
+
+                        if (foundInProps != null){
+                            proposals.removeIf { prop ->
+                                if(prop is SignProposal){
+                                    prop.id == update.id
+                                }else{
+                                    false
+                                }
+                            }
+                            proposals.add(
+                                foundInProps.copy(
+                                    signed = true,
+                                    signatureHex = update.signature
+                                )
+                            )
+                        }
                     }
                 }
             }
@@ -105,5 +173,29 @@ class FrostViewModel(
         viewModelScope.launch(Dispatchers.Default){
             frostManager.joinGroup()
         }
+    }
+
+    suspend fun proposeSign(data: ByteArray){
+        val (ok, id) = frostManager.proposeSignAsync(data)
+        if (!ok){
+            Log.d("FROST", "Failed to create sign proposal")
+            return
+        }
+        myProposals.add(SignProposal(id, frostCommunity.myPeer.mid, data))
+
+    }
+
+    suspend fun acceptSign(id: Long){
+        val prop = proposals
+            .find {
+                it is SignProposal && it.id == id
+            } as SignProposal?
+
+        if(prop == null){
+            Log.d("FROST", "cold not accept sign proposal. We could not find a proposal with this id")
+            return
+        }
+
+        frostManager.acceptProposedSign(prop.id,prop.fromMid,prop.msg)
     }
 }

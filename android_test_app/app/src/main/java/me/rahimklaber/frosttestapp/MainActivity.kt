@@ -114,7 +114,7 @@ class MainActivity : AppCompatActivity() {
         }
         signbutton.setOnClickListener {
             GlobalScope.launch {
-                frostManager.proposeSign(Random.Default.nextBytes(32))
+//                frostManager.proposeSign(Random.Default.nextBytes(32))
 //                textview.text = "${textview.text}\n started sign"
                 Log.d("FROST", "started sign")
             }
