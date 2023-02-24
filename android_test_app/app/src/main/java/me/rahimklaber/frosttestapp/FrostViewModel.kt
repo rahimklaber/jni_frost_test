@@ -1,24 +1,19 @@
 package me.rahimklaber.frosttestapp
 
 import android.util.Log
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.goterl.lazysodium.interfaces.Sign
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import me.rahimklaber.frosttestapp.ipv8.FrostCommunity
 import me.rahimklaber.frosttestapp.ipv8.FrostManager
 import me.rahimklaber.frosttestapp.ipv8.Update
 import me.rahimklaber.frosttestapp.ipv8.message.*
-import kotlin.math.sign
+import java.util.*
 
 sealed interface Proposal{
     val fromMid: String
@@ -44,6 +39,14 @@ data class JoinProposal(
 }
 
 
+enum class FrostPeerStatus(val color: Color) {
+    Pending(Color.Yellow),
+    Available(Color.Green),
+    NonResponsive(Color.Red)
+}
+
+
+
 
 class FrostViewModel(
     private val frostCommunity: FrostCommunity,
@@ -60,6 +63,8 @@ class FrostViewModel(
     //todo figure out how to hide this from consumers and make it a non-mutable list
     val proposals = mutableStateListOf<Proposal>()
     val myProposals = mutableStateListOf<Proposal>()
+    //status of other peers in the community
+    val stateMap = mutableStateMapOf<String,FrostPeerStatus>()
 
     init {
         viewModelScope.launch(Dispatchers.Default) {
@@ -69,6 +74,28 @@ class FrostViewModel(
                     delay(5000)
                     refreshFrostData()
                     _peers.value = frostCommunity.getPeers().map { it.mid }
+
+                    val now = Date()
+
+                    for (mid in _peers.value) {
+                        val lastResponseTimeMillis = frostCommunity.lastResponseFrom[mid]?.time
+
+                        if (frostManager.frostInfo != null && frostManager.frostInfo!!.members.find {
+                                it.peer.mid == mid
+                            } == null){
+                            stateMap[mid] = FrostPeerStatus.Pending
+                        }
+                        if (lastResponseTimeMillis == null){
+                            stateMap[mid] = FrostPeerStatus.NonResponsive
+                        }else if(lastResponseTimeMillis -now.time < 1800_000){
+                            stateMap[mid] = FrostPeerStatus.Available
+                        }else{
+                            stateMap[mid] = FrostPeerStatus.NonResponsive
+
+                        }
+
+                    }
+
                 }
             }
             launch {

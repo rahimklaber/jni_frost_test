@@ -70,7 +70,7 @@ class FrostSettings : Fragment() {
                             Text(text = "Join Group")
                         }
 
-                        ActivityGrid()
+                        ActivityGrid(frostViewModel)
                     }
                 }
             }
