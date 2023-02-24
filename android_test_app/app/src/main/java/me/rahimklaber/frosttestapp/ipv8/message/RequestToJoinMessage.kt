@@ -5,7 +5,7 @@ import nl.tudelft.ipv8.messaging.Serializable
 import java.nio.charset.Charset
 
 data class RequestToJoinMessage(
-    val id: Long // some random id to keep track of the request
+    override val id: Long // some random id to keep track of the request
 ) : FrostMessage {
     override fun serialize(): ByteArray {
         return id.toString().toByteArray()

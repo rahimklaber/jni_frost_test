@@ -4,7 +4,7 @@ import nl.tudelft.ipv8.messaging.Deserializable
 import nl.tudelft.ipv8.messaging.Serializable
 
 data class RequestToJoinResponseMessage(
-    val id: Long,
+    override val id: Long,
     // if there are 10 members then my index will be 11
     val ok: Boolean,
     val  amountOfMembers: Int,

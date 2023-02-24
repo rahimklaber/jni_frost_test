@@ -178,7 +178,7 @@ class FrostManager(
         scope.launch {
             receiveChannel
                 .collect {
-//                    Log.d("FROST", "collected msg ${it.second}")
+                    Log.d("FROST", "received msg in frostmanager ${it.second}")
                     processMsg(it)
                 }
         }

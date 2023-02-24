@@ -5,7 +5,7 @@ import nl.tudelft.ipv8.util.hexToBytes
 import nl.tudelft.ipv8.util.toHex
 import java.nio.Buffer
 
-data class KeyGenCommitments(val id: Long, val byteArray: ByteArray) : FrostMessage{
+data class KeyGenCommitments(override val id: Long, val byteArray: ByteArray) : FrostMessage{
     override fun serialize(): ByteArray {
         return "$id#${byteArray.toHex()}".toByteArray()
     }
@@ -43,7 +43,7 @@ data class KeyGenCommitments(val id: Long, val byteArray: ByteArray) : FrostMess
     }
 }
 
-data class KeyGenShare(val id: Long, val byteArray: ByteArray) : FrostMessage{
+data class KeyGenShare(override val id: Long, val byteArray: ByteArray) : FrostMessage{
     override fun serialize(): ByteArray {
         return "$id#${byteArray.toHex()}".toByteArray()
     }

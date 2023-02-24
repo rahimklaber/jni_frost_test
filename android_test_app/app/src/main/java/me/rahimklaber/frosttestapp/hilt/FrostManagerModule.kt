@@ -26,12 +26,12 @@ object FrostManagerModule {
             networkManager = object : NetworkManager {
                 override fun send(peer: Peer, msg: FrostMessage) {
                     Log.d("FROST","sending: $msg")
-                    frostCommunity.sendForPublic(peer, msg)
+                    frostCommunity.sendEva(peer, msg)
                 }
 
                 override fun broadcast(msg: FrostMessage) {
                     Log.d("FROST","broadcasting: $msg")
-                    frostCommunity.broadcast(msg)
+                    frostCommunity.broadcastEva(msg)
                 }
 
                 override fun getMyPeer(): Peer = frostCommunity.myPeer

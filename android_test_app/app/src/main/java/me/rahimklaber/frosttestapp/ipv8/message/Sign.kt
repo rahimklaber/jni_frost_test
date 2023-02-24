@@ -5,7 +5,7 @@ import nl.tudelft.ipv8.messaging.Deserializable
 import nl.tudelft.ipv8.util.hexToBytes
 import nl.tudelft.ipv8.util.toHex
 
-data class Preprocess(val id:Long, val bytes: ByteArray, val participants: List<Int> = listOf()) : FrostMessage {
+data class Preprocess(override val id:Long, val bytes: ByteArray, val participants: List<Int> = listOf()) : FrostMessage {
 
     override fun serialize(): ByteArray {
         return "$id#${bytes.toHex()}#${participants.joinToString(",")}".toByteArray(Charsets.UTF_8)
@@ -50,7 +50,7 @@ data class Preprocess(val id:Long, val bytes: ByteArray, val participants: List<
 
     }
 }
-data class SignShare(val id: Long, val bytes: ByteArray) : FrostMessage {
+data class SignShare(override val id: Long, val bytes: ByteArray) : FrostMessage {
 
 
     override fun serialize(): ByteArray {
@@ -85,7 +85,7 @@ data class SignShare(val id: Long, val bytes: ByteArray) : FrostMessage {
     }
 }
 
-data class SignRequest(val id: Long, val data: ByteArray) : FrostMessage {
+data class SignRequest(override val id: Long, val data: ByteArray) : FrostMessage {
     override fun serialize(): ByteArray {
         return "$id#${data.toHex()}".toByteArray(Charsets.UTF_8)
     }
@@ -124,7 +124,7 @@ data class SignRequest(val id: Long, val data: ByteArray) : FrostMessage {
 
 }
 
-data class SignRequestResponse(val id: Long, val ok: Boolean) : FrostMessage {
+data class SignRequestResponse(override val id: Long, val ok: Boolean) : FrostMessage {
     override fun serialize(): ByteArray {
         return "$id#$ok".toByteArray(Charsets.UTF_8)
     }
