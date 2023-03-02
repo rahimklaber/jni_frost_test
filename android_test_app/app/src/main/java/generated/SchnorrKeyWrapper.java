@@ -16,6 +16,21 @@ public final class SchnorrKeyWrapper {
     }
     private static native byte [] do_get_bitcoin_encoded_key(long self);
 
+    public final byte [] serialize() {
+        byte [] ret = do_serialize(mNativeObj);
+
+        return ret;
+    }
+    private static native byte [] do_serialize(long self);
+
+    public static SchnorrKeyWrapper from_serialized(byte [] key_share) {
+        long ret = do_from_serialized(key_share);
+        SchnorrKeyWrapper convRet = new SchnorrKeyWrapper(InternalPointerMarker.RAW_PTR, ret);
+
+        return convRet;
+    }
+    private static native long do_from_serialized(byte [] key_share);
+
     public synchronized void delete() {
         if (mNativeObj != 0) {
             do_delete(mNativeObj);

@@ -3,30 +3,21 @@ package me.rahimklaber.frosttestapp
 import android.Manifest
 import android.os.Bundle
 import android.preference.PreferenceManager
-import android.util.Log
-import com.google.android.material.bottomnavigation.BottomNavigationView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.getSystemService
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.ViewModelProviders
-import androidx.lifecycle.viewmodel.viewModelFactory
-import androidx.navigation.findNavController
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.setupActionBarWithNavController
 import androidx.navigation.ui.setupWithNavController
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.squareup.sqldelight.android.AndroidSqliteDriver
 import dagger.hilt.android.AndroidEntryPoint
 import me.rahimklaber.frosttestapp.databinding.ActivityOverviewBinding
 import me.rahimklaber.frosttestapp.ipv8.FrostCommunity
-import me.rahimklaber.frosttestapp.ipv8.FrostManager
-import me.rahimklaber.frosttestapp.ipv8.NetworkManager
-import me.rahimklaber.frosttestapp.ipv8.message.FrostMessage
 import nl.tudelft.ipv8.IPv8Configuration
 import nl.tudelft.ipv8.Overlay
 import nl.tudelft.ipv8.OverlayConfiguration
-import nl.tudelft.ipv8.Peer
 import nl.tudelft.ipv8.android.IPv8Android
 import nl.tudelft.ipv8.android.keyvault.AndroidCryptoProvider
 import nl.tudelft.ipv8.android.peerdiscovery.NetworkServiceDiscovery
@@ -47,6 +38,7 @@ class Overview : AppCompatActivity() {
 
     private lateinit var binding: ActivityOverviewBinding
 
+    //    @Inject private lateinit var db: FrostDatabase
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         System.loadLibrary("rust_code")
@@ -58,6 +50,7 @@ class Overview : AppCompatActivity() {
                 Manifest.permission.BLUETOOTH_ADVERTISE,
             ).toTypedArray(),1)
         }
+
 
         initIPv8()
 

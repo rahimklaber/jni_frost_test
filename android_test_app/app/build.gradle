@@ -104,7 +104,20 @@ dependencies {
     implementation "com.squareup.sqldelight:android-driver:1.2.1"
     implementation "com.squareup.sqldelight:coroutines-extensions:1.2.1"
     implementation 'uk.uuid.slf4j:slf4j-android:1.7.30-0'
-    implementation "org.jetbrains.kotlin:kotlin-script-runtime:1.7.10"
+
+    def room_version = "2.5.0"
+
+    implementation "androidx.room:room-runtime:$room_version"
+    annotationProcessor "androidx.room:room-compiler:$room_version"
+
+    // To use Kotlin annotation processing tool (kapt)
+    kapt "androidx.room:room-compiler:$room_version"
+    // To use Kotlin Symbol Processing (KSP)
+//    ksp "androidx.room:room-compiler:$room_version"
+
+    implementation "androidx.room:room-ktx:$room_version"
+
+
 }
 
 kapt {

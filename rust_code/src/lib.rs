@@ -11,6 +11,7 @@ use bitcoin::util::sighash;
 use bitcoin::util::sighash::SighashCache;
 use bitcoin::util::taproot::TapTweakHash;
 use bitcoin_serai::crypto::{make_even, BitcoinHram};
+use modular_frost::ThresholdCore;
 use modular_frost::dkg::encryption::{EncryptionKeyMessage, EncryptedMessage};
 use modular_frost::dkg::{frost::{Commitments, KeyGenMachine, KeyMachine, SecretShare, SecretShareMachine}, ThresholdKeys, ThresholdParams};
 use k256::{elliptic_curve::{sec1::ToEncodedPoint}, Scalar, U256};
@@ -151,6 +152,19 @@ pub struct SchnorrKeyWrapper{
 impl SchnorrKeyWrapper {
     fn new () -> SchnorrKeyWrapper{
         panic!();
+    }
+
+    fn serialize(&self) -> Vec<i8>{
+        self.key.serialize().iter().map(|&x| x as i8).collect()
+    }
+
+    fn from_serialized(key_share: &[i8]) -> Self{
+        let key_share = unsafe { &*(key_share as *const _  as *const [u8]) }.to_owned();
+
+        
+
+        Self { key: ThresholdKeys::new(ThresholdCore::read::<&[u8]>(&mut key_share.as_ref()).unwrap()) }
+
     }
 
     fn get_bitcoin_encoded_key(&self) -> Vec<i8>{

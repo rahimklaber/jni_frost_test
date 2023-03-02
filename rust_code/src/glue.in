@@ -43,6 +43,8 @@ foreign_class!(
 		self_type SchnorrKeyWrapper;
 		constructor SchnorrKeyWrapper::new() -> SchnorrKeyWrapper;
 		fn SchnorrKeyWrapper::get_bitcoin_encoded_key(&self) -> Vec<i8>;
+		fn SchnorrKeyWrapper::serialize(&self) -> Vec<i8>;
+		fn SchnorrKeyWrapper::from_serialized(key_share: &[i8]) -> SchnorrKeyWrapper;
 	}
 );
 

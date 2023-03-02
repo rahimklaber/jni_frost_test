@@ -13,6 +13,7 @@ import me.rahimklaber.frosttestapp.ipv8.FrostCommunity
 import me.rahimklaber.frosttestapp.ipv8.FrostManager
 import me.rahimklaber.frosttestapp.ipv8.Update
 import me.rahimklaber.frosttestapp.ipv8.message.*
+import nl.tudelft.ipv8.Peer
 import java.util.*
 
 sealed interface Proposal{
@@ -76,18 +77,18 @@ class FrostViewModel(
                     _peers.value = frostCommunity.getPeers().map { it.mid }
 
                     val now = Date()
-
-                    for (mid in _peers.value) {
+                    var allPeerMids = _peers.value union  (frostManager.frostInfo?.members?.map{it.peer} ?: listOf())
+                    for (mid in allPeerMids)  {
                         val lastResponseTimeMillis = frostCommunity.lastResponseFrom[mid]?.time
 
                         if (frostManager.frostInfo != null && frostManager.frostInfo!!.members.find {
-                                it.peer.mid == mid
+                                it.peer == mid
                             } == null){
                             stateMap[mid] = FrostPeerStatus.Pending
                         }
                         if (lastResponseTimeMillis == null){
                             stateMap[mid] = FrostPeerStatus.NonResponsive
-                        }else if(lastResponseTimeMillis -now.time < 1800_000){
+                        }else if(lastResponseTimeMillis -now.time < 600_000){
                             stateMap[mid] = FrostPeerStatus.Available
                         }else{
                             stateMap[mid] = FrostPeerStatus.NonResponsive

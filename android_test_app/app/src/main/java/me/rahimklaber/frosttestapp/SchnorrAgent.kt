@@ -8,7 +8,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import nl.tudelft.ipv8.util.toHex
-import java.lang.IllegalArgumentException
 
 sealed interface SchnorrAgentMessage{
     data class KeyCommitment(val commitment: ByteArray, val fromIndex: Int) : SchnorrAgentMessage
@@ -41,6 +40,17 @@ class SchnorrAgent(
     private val receiveChannel: ReceiveChannel<SchnorrAgentMessage>,
     private val outputChannel: SendChannel<SchnorrAgentOutput>,
 ){
+
+    constructor(
+        keyByteArray: ByteArray, numberOfParticipants: Int,
+        index: Int,
+        threshold: Int,
+        receiveChannel: ReceiveChannel<SchnorrAgentMessage>,
+        outputChannel: SendChannel<SchnorrAgentOutput>
+    ) : this(numberOfParticipants, index, threshold, receiveChannel, outputChannel){
+        keyWrapper = SchnorrKeyWrapper.from_serialized(keyByteArray)
+    }
+
     lateinit var keyWrapper: SchnorrKeyWrapper
     suspend fun startKeygen() = coroutineScope {
         var key_gen_machine = SchnorrKeyGenWrapper(threshold, numberOfParticipants, index, "test")

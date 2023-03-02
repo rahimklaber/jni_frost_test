@@ -9,9 +9,16 @@ import kotlinx.coroutines.sync.Mutex
 import me.rahimklaber.frosttestapp.SchnorrAgent
 import me.rahimklaber.frosttestapp.SchnorrAgentMessage
 import me.rahimklaber.frosttestapp.SchnorrAgentOutput
+import me.rahimklaber.frosttestapp.database.FrostDatabase
+import me.rahimklaber.frosttestapp.database.Me
+import me.rahimklaber.frosttestapp.database.ReceivedMessage
+import me.rahimklaber.frosttestapp.database.Request
 import me.rahimklaber.frosttestapp.ipv8.message.*
 import nl.tudelft.ipv8.Peer
+import nl.tudelft.ipv8.keyvault.Key
+import nl.tudelft.ipv8.keyvault.PublicKey
 import nl.tudelft.ipv8.util.toHex
+import java.util.*
 import kotlin.math.sign
 import kotlin.random.Random
 import kotlin.reflect.KClass
@@ -32,8 +39,8 @@ fun interface Broadcaster{
             midsOfNewGroup[index-1]
         }*/
 
-fun FrostGroup.getIndex(mid: String) = members.find { it.peer.mid == mid }?.index
-fun FrostGroup.getMidForIndex(index: Int) = members.find { it.index == index }?.peer?.mid
+fun FrostGroup.getIndex(mid: String) = members.find { it.peer == mid }?.index
+fun FrostGroup.getMidForIndex(index: Int) = members.find { it.index == index }?.peer
 
 interface NetworkManager{
     fun send(peer: Peer, msg: FrostMessage)
@@ -95,6 +102,7 @@ typealias SignRequestResponseCallback = (Peer, SignRequestResponse) -> Unit
 
 class FrostManager(
     val receiveChannel: SharedFlow<Pair<Peer, FrostMessage>>,
+    val db: FrostDatabase,
     val networkManager: NetworkManager,
 //    val getFrostInfo : () -> FrostGroup?,
     val updatesChannel: MutableSharedFlow<Update> = MutableSharedFlow(extraBufferCapacity = 10),
@@ -125,6 +133,8 @@ class FrostManager(
 
     var joinId = -1L;
     var joining = false;
+
+    lateinit var dbMe: Me
 
     val onJoinRequestResponseCallbacks = mutableMapOf<Int,OnJoinRequestResponseCallback>()
     val onKeyGenCommitmentsCallBacks = mutableMapOf<Int,KeyGenCommitmentsCallaback>()
@@ -179,8 +189,56 @@ class FrostManager(
             receiveChannel
                 .collect {
                     Log.d("FROST", "received msg in frostmanager ${it.second}")
+                    db.receivedMessageDao()
+                        .insertReceivedMessage(
+                            ReceivedMessage(
+                                unixTime = Date().time / 1000,
+                                type = messageIdFromMsg(it.second),
+                                messageId = it.second.id,
+                                data = it.second.serialize(),
+                                fromMid = it.first.mid,
+                            )
+                        )
+                    if (messageIdFromMsg(it.second) == SignRequest.MESSAGE_ID){
+                        db.requestDao()
+                            .insertRequest(
+                                Request(
+                                    unixTime = Date().time / 1000,
+                                    type = messageIdFromMsg(it.second),
+                                    requestId = it.second.id,
+                                    data = it.second.serialize(),
+                                    fromMid = it.first.mid,
+                                )
+                            )
+                    }
                     processMsg(it)
                 }
+        }
+
+        scope.launch(Dispatchers.Default) {
+            val storedMe = db.meDao().get()
+
+            if (storedMe != null){
+                SchnorrAgent(storedMe.frostKeyShare,storedMe.frostN,storedMe.frostIndex,storedMe.frostThresholod, agentSendChannel, agentReceiveChannel)
+                dbMe = storedMe
+//                delay(5000)
+                frostInfo = FrostGroup(
+                    members = storedMe.frostMembers.map {
+                        FrostMemberInfo(
+                           it,
+                            -1//todo
+                        )
+                    },
+                    threshold = dbMe.frostThresholod,
+                    myIndex = dbMe.frostIndex
+                )
+                state = FrostState.ReadyForSign
+            }else{
+                dbMe = Me(
+                    -1,
+                    byteArrayOf(0),0,1,1, listOf("")
+                )
+            }
         }
 
     }
@@ -368,17 +426,16 @@ class FrostManager(
 
     }
 
-    private suspend fun startKeyGen(id: Long, peersInGroup: List<Peer>, isNew: Boolean = false) = scope.launch{
+    private suspend fun startKeyGen(id: Long, midsOfNewGroup: List<String>, isNew: Boolean = false) = scope.launch{
         joinId = id
 
         agentSendChannel = Channel(10)
         agentReceiveChannel = Channel(10)
 
-        val amount = peersInGroup.size
-        val midsOfNewGroup = peersInGroup
-            .map(Peer::mid)
+        val amount = midsOfNewGroup.size
+        val midsOfNewGroup = midsOfNewGroup
             .sorted()
-        Log.d("FROST", "new group size : ${peersInGroup.size}")
+        Log.d("FROST", "new group size : ${midsOfNewGroup.size}")
         val getIndex = { mid: String ->
             midsOfNewGroup.indexOf(mid) + 1
         }
@@ -388,7 +445,7 @@ class FrostManager(
 
         val index = getIndex(networkManager.getMyPeer().mid)
 
-        agent = SchnorrAgent(amount,index,peersInGroup.size / 2 + 1, agentSendChannel, agentReceiveChannel)
+        agent = SchnorrAgent(amount,index,midsOfNewGroup.size / 2 + 1, agentSendChannel, agentReceiveChannel)
 
         val mutex = Mutex(true)
         addKeyGenCommitmentsCallbacks{ peer, msg ->
@@ -424,15 +481,25 @@ class FrostManager(
         agent!!.startKeygen()
 
         this@FrostManager.frostInfo = FrostGroup(
-            (peersInGroup.filter { it.mid != networkManager.getMyPeer().mid }).map {
+            (midsOfNewGroup.filter { it != networkManager.getMyPeer().mid }).map {
                 FrostMemberInfo(
                     it,
-                    getIndex(it.mid)
+                    getIndex(it)
                 )
             },
             index,
-            threshold = peersInGroup.size / 2 + 1
+            threshold = midsOfNewGroup.size / 2 + 1
         )
+
+        dbMe = dbMe.copy(
+            frostKeyShare = agent!!.keyWrapper.serialize(),
+            frostMembers = midsOfNewGroup.filter { it != networkManager.getMyPeer().mid },
+            frostN = midsOfNewGroup.size,
+            frostThresholod = midsOfNewGroup.size / 2 + 1
+        )
+
+        db.meDao()
+            .insert(dbMe)
 
         state = FrostState.ReadyForSign
         //cancel when done
@@ -454,7 +521,7 @@ class FrostManager(
         }
         val peersInGroup = waitForJoinResponse(joinId)
         state = FrostState.KeyGen(joinId)
-        keyGenJob =  startKeyGen(joinId,peersInGroup + networkManager.getMyPeer(),true)
+        keyGenJob =  startKeyGen(joinId,(peersInGroup + networkManager.getMyPeer()).map { it.mid },true)
         Log.i("FROST","started keygen")
     }
 
@@ -492,14 +559,14 @@ class FrostManager(
                     updatesChannel.emit(Update.StartedKeyGen(msg.id))
 
                     networkManager.broadcast(RequestToJoinResponseMessage(msg.id, true, frostInfo?.amount ?: 1,
-                        (frostInfo?.members?.map { it.peer.mid }
+                        (frostInfo?.members?.map { it.peer }
                             ?.plus(networkManager.getMyPeer().mid))
                             ?: listOf(
                                 networkManager.getMyPeer().mid
                             )))
                     keyGenJob = startKeyGen(msg.id,
-                        frostInfo?.members?.map(FrostMemberInfo::peer)?.plus(peer)?.plus(networkManager.getMyPeer())
-                            ?: (listOf(networkManager.getMyPeer()) + peer)
+                        frostInfo?.members?.map(FrostMemberInfo::peer)?.plus(peer.mid)?.plus(networkManager.getMyPeer().mid)
+                            ?: (listOf(networkManager.getMyPeer()) + peer).map { it.mid }
                     )
                 }
             }
