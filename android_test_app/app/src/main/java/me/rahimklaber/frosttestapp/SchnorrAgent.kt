@@ -76,13 +76,13 @@ class SchnorrAgent(
                 when(msg){
                     is SchnorrAgentMessage.DkgShare -> {
                         param_keygen_3_msgs.add(msg)
-                        Log.d("FROST", "enough dkg")
+//                        Log.d("FROST", "enough dkg")
                         dkgSharesReceived++
                         if (dkgSharesReceived == numberOfParticipants - 1)
                             notification2Mutex.unlock()
                     }
                     is SchnorrAgentMessage.KeyCommitment -> {
-                        Log.d("FROST","enought commitments")
+//                        Log.d("FROST","enought commitments")
                         param_keygen_2_msgs.add(msg)
 
                         keycommitmentReceived++
@@ -118,9 +118,7 @@ class SchnorrAgent(
         }
 
         key_gen_machine = ResultKeygen2.get_keygen(res_key_2)
-        Log.d("FROST","Before")
         notification2Mutex.lock()
-        Log.d("FROST","after")
 
         val params_keygen_3 = ParamsKeygen3()
 
