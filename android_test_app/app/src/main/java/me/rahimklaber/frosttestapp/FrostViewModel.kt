@@ -13,7 +13,6 @@ import me.rahimklaber.frosttestapp.ipv8.FrostCommunity
 import me.rahimklaber.frosttestapp.ipv8.FrostManager
 import me.rahimklaber.frosttestapp.ipv8.Update
 import me.rahimklaber.frosttestapp.ipv8.message.*
-import nl.tudelft.ipv8.Peer
 import java.util.*
 
 sealed interface Proposal{
@@ -66,7 +65,8 @@ class FrostViewModel(
     val myProposals = mutableStateListOf<Proposal>()
     //status of other peers in the community
     val stateMap = mutableStateMapOf<String,FrostPeerStatus>()
-
+    //unix time when we last heard from
+    val lastHeardFrom = mutableStateMapOf<String,Long>()
     init {
         viewModelScope.launch(Dispatchers.Default) {
 
@@ -78,15 +78,18 @@ class FrostViewModel(
 
                     val now = Date()
                     var allPeerMids = _peers.value union  (frostManager.frostInfo?.members?.map{it.peer} ?: listOf())
+                    _peers.value = allPeerMids.toList()
                     for (mid in allPeerMids)  {
                         val lastResponseTimeMillis = frostCommunity.lastResponseFrom[mid]?.time
-
+                        if (lastResponseTimeMillis != null) {
+                            lastHeardFrom[mid] = lastResponseTimeMillis /1000
+                        }
                         if (frostManager.frostInfo != null && frostManager.frostInfo!!.members.find {
                                 it.peer == mid
                             } == null){
                             stateMap[mid] = FrostPeerStatus.Pending
                         }
-                        if (lastResponseTimeMillis == null){
+                        else if (lastResponseTimeMillis == null){
                             stateMap[mid] = FrostPeerStatus.NonResponsive
                         }else if(lastResponseTimeMillis -now.time < 600_000){
                             stateMap[mid] = FrostPeerStatus.Available
@@ -101,7 +104,7 @@ class FrostViewModel(
             }
             launch {
                 frostCommunity
-                    .channel
+                    .getMsgChannel()
                     .filter {
                         it.second is RequestToJoinMessage || it.second is SignRequest
                     }

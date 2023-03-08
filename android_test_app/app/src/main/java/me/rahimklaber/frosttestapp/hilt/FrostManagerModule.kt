@@ -31,8 +31,8 @@ object FrostManagerModule {
     fun provideFrostViewModel(db: FrostDatabase) : FrostViewModel {
         val frostCommunity = IPv8Android.getInstance().getOverlay<FrostCommunity>()
             ?: error("FROSTCOMMUNITY should be initialized")
-        val frostManager = FrostManager(frostCommunity.channel,
-            db= db,
+        val frostManager = FrostManager(frostCommunity.getMsgChannel(),
+            db = db,
             networkManager = object : NetworkManager {
                 override fun send(peer: Peer, msg: FrostMessage) {
                     Log.d("FROST","sending: $msg")
@@ -58,7 +58,7 @@ object FrostManagerModule {
                                 )
                             )
                     }
-                    frostCommunity.sendEva(peer, msg)
+                    frostCommunity.sendForPublic(peer, msg)
                 }
 
                 override fun broadcast(msg: FrostMessage) {
@@ -85,7 +85,7 @@ object FrostManagerModule {
                                 )
                             )
                     }
-                    frostCommunity.broadcastEva(msg)
+                    frostCommunity.broadcast(msg)
                 }
 
                 override fun getMyPeer(): Peer = frostCommunity.myPeer

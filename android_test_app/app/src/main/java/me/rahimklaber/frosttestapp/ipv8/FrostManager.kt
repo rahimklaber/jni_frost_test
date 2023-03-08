@@ -3,8 +3,8 @@ package me.rahimklaber.frosttestapp.ipv8
 import android.util.Log
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.sync.Mutex
 import me.rahimklaber.frosttestapp.SchnorrAgent
 import me.rahimklaber.frosttestapp.SchnorrAgentMessage
@@ -15,11 +15,8 @@ import me.rahimklaber.frosttestapp.database.ReceivedMessage
 import me.rahimklaber.frosttestapp.database.Request
 import me.rahimklaber.frosttestapp.ipv8.message.*
 import nl.tudelft.ipv8.Peer
-import nl.tudelft.ipv8.keyvault.Key
-import nl.tudelft.ipv8.keyvault.PublicKey
 import nl.tudelft.ipv8.util.toHex
 import java.util.*
-import kotlin.math.sign
 import kotlin.random.Random
 import kotlin.reflect.KClass
 import kotlin.reflect.KFunction2
@@ -101,7 +98,7 @@ typealias SignRequestCallback = (Peer, SignRequest) -> Unit
 typealias SignRequestResponseCallback = (Peer, SignRequestResponse) -> Unit
 
 class FrostManager(
-    val receiveChannel: SharedFlow<Pair<Peer, FrostMessage>>,
+    val receiveChannel: Flow<Pair<Peer, FrostMessage>>,
     val db: FrostDatabase,
     val networkManager: NetworkManager,
 //    val getFrostInfo : () -> FrostGroup?,
@@ -217,16 +214,16 @@ class FrostManager(
 
         scope.launch(Dispatchers.Default) {
             val storedMe = db.meDao().get()
-
             if (storedMe != null){
-                SchnorrAgent(storedMe.frostKeyShare,storedMe.frostN,storedMe.frostIndex,storedMe.frostThresholod, agentSendChannel, agentReceiveChannel)
+                agent = SchnorrAgent(storedMe.frostKeyShare,storedMe.frostN,storedMe.frostIndex,storedMe.frostThresholod, agentSendChannel, agentReceiveChannel)
                 dbMe = storedMe
 //                delay(5000)
                 frostInfo = FrostGroup(
                     members = storedMe.frostMembers.map {
+                        val (mid, indexstr) = it.split("#").take(2)
                         FrostMemberInfo(
-                           it,
-                            -1//todo
+                           mid,
+                            indexstr.toInt()
                         )
                     },
                     threshold = dbMe.frostThresholod,
@@ -371,6 +368,7 @@ class FrostManager(
             if (msg.id  != signId)
                 return@addSignShareCallback
             launch {
+                delay(200)
                 agentSendChannel.send(
                     SchnorrAgentOutput.SignShare(
                         msg.bytes,
@@ -384,6 +382,7 @@ class FrostManager(
                 return@addPreprocessCallabac
             }
             launch {
+                delay(200)
                 if (!isProposer && mutex.isLocked && preprocess.participants.isNotEmpty()) { // only the init message has size > 0
                     mutex.unlock()
                     receivedFromInitiator = true
@@ -450,6 +449,7 @@ class FrostManager(
         val mutex = Mutex(true)
         addKeyGenCommitmentsCallbacks{ peer, msg ->
             launch {
+                delay(200)
                 if (!isNew && mutex.isLocked)
                     mutex.unlock()
                 agentSendChannel.send(SchnorrAgentMessage.KeyCommitment(msg.byteArray,getIndex(peer.mid)))
@@ -457,6 +457,7 @@ class FrostManager(
         }
         addKeyGenShareCallback { peer, keyGenShare ->
             launch {
+                delay(200)
                 agentSendChannel.send(SchnorrAgentMessage.DkgShare(keyGenShare.byteArray,getIndex(peer.mid)))
             }
         }
@@ -493,8 +494,11 @@ class FrostManager(
 
         dbMe = dbMe.copy(
             frostKeyShare = agent!!.keyWrapper.serialize(),
-            frostMembers = midsOfNewGroup.filter { it != networkManager.getMyPeer().mid },
+            frostMembers = midsOfNewGroup.filter { it != networkManager.getMyPeer().mid }.map {
+               "$it#${frostInfo!!.getIndex(it)}"
+            },
             frostN = midsOfNewGroup.size,
+            frostIndex = index,
             frostThresholod = midsOfNewGroup.size / 2 + 1
         )
 

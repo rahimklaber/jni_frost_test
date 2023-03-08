@@ -1,15 +1,18 @@
 package me.rahimklaber.frosttestapp.ipv8
 
 import android.util.Log
-import kotlinx.coroutines.channels.BroadcastChannel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterNot
 import kotlinx.coroutines.launch
 import me.rahimklaber.frosttestapp.ipv8.message.*
 import nl.tudelft.ipv8.Community
 import nl.tudelft.ipv8.Peer
 import nl.tudelft.ipv8.messaging.Packet
 import nl.tudelft.ipv8.messaging.eva.takeInRange
-import nl.tudelft.ipv8.messaging.payload.IntroductionRequestPayload
 import nl.tudelft.ipv8.messaging.payload.IntroductionResponsePayload
 import java.util.Date
 
@@ -47,13 +50,24 @@ class FrostCommunity : Community() {
     override val serviceId: String
         get() = "5ce0aab9123b60537030b1312783a0ebcf5fd92f"
 
-    val channel = MutableSharedFlow<Pair<Peer,FrostMessage>>(extraBufferCapacity = 10000) //todo check this
+    private val _channel = MutableSharedFlow<Pair<Peer,FrostMessage>>(extraBufferCapacity = 10000) //todo check this
+    //todo this should be a mutable flow
+    fun getMsgChannel(): Flow<Pair<Peer, FrostMessage>> {
+        return _channel.filter {(peer, msg) ->
+            val contains = received.containsKey(peer.mid to msg.hashCode())
+            if (!contains){
+                received[peer.mid to msg.hashCode()]=true
+                true
+            }else{false}
+        }
+    }
     val lastResponseFrom = mutableMapOf<String,Date>()
 
     override fun onIntroductionResponse(peer: Peer, payload: IntroductionResponsePayload) {
         super.onIntroductionResponse(peer, payload)
         lastResponseFrom[peer.mid] = Date()
     }
+
 
     init {
         //todo maybe deserialize
@@ -62,56 +76,56 @@ class FrostCommunity : Community() {
 //            error("received ${pair.second}")
             //todo check this
             scope.launch {
-                channel.emit(pair)
+                _channel.emit(pair)
             }
         }
         messageHandlers[RequestToJoinResponseMessage.MESSAGE_ID] = {packet ->
             val pair = packet.getAuthPayload(RequestToJoinResponseMessage.Deserializer)
             //todo check this
             scope.launch {
-                channel.emit(pair)
+                _channel.emit(pair)
             }
         }
         messageHandlers[KeyGenCommitments.MESSAGE_ID] = { packet ->
             val pair = packet.getAuthPayload(KeyGenCommitments.Deserializer)
             //todo check this
             scope.launch {
-                channel.emit(pair)
+                _channel.emit(pair)
             }
         }
         messageHandlers[KeyGenShare.MESSAGE_ID] = { packet ->
             val pair = packet.getAuthPayload(KeyGenShare.Deserializer)
             //todo check this
             scope.launch {
-                channel.emit(pair)
+                _channel.emit(pair)
             }
         }
         messageHandlers[Preprocess.MESSAGE_ID] = { packet ->
             val pair = packet.getAuthPayload(Preprocess.Deserializer)
             //todo check this
             scope.launch {
-                channel.emit(pair)
+                _channel.emit(pair)
             }
         }
         messageHandlers[SignShare.MESSAGE_ID] = { packet ->
             val pair = packet.getAuthPayload(SignShare.Deserializer)
             //todo check this
             scope.launch {
-                channel.emit(pair)
+                _channel.emit(pair)
             }
         }
         messageHandlers[SignRequest.MESSAGE_ID] = { packet ->
             val pair = packet.getAuthPayload(SignRequest.Deserializer)
             //todo check this
             scope.launch {
-                channel.emit(pair)
+                _channel.emit(pair)
             }
         }
         messageHandlers[SignRequestResponse.MESSAGE_ID] = { packet ->
             val pair = packet.getAuthPayload(SignRequestResponse.Deserializer)
             //todo check this
             scope.launch {
-                channel.emit(pair)
+                _channel.emit(pair)
             }
         }
 
@@ -150,11 +164,23 @@ class FrostCommunity : Community() {
             evaSendBinary(peer, EVA_FROST_DAO_attachment,"${msg.id}$id",packet.toByteArray())
         }
     }
+
+    // store that we received a msg.
+    // (mid,hash) -> Boolean
+    val sent = mutableMapOf<Pair<String,Int>,Boolean>()
+    val received  = mutableMapOf<Pair<String,Int>,Boolean>()
     // better name lol
     fun sendForPublic(peer: Peer, msg: FrostMessage) {
         val id = messageIdFromMsg(msg)
         val packet = serializePacket(id,msg)
-        send(peer,packet)
+        scope.launch(Dispatchers.Default) {
+            repeat(10){
+                delay(50)
+                send(peer,packet)
+            }
+        }
+        sent[peer.mid to msg.hashCode()] = true
+
     }
 
 
@@ -165,7 +191,13 @@ class FrostCommunity : Community() {
 
         val packet = serializePacket(messageIdFromMsg(msg),msg)
         for (peer in getPeers()) {
-            send(peer,packet)
+           scope.launch(Dispatchers.Default) {
+               repeat(10){
+                   delay(50)
+                   send(peer,packet)
+               }
+           }
+            sent[peer.mid to msg.hashCode()] = true
         }
     }
 
