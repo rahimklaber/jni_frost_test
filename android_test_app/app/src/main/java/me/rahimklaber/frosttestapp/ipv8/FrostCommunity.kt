@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNot
 import kotlinx.coroutines.launch
+import me.rahimklaber.frosttestapp.database.FrostDatabase
 import me.rahimklaber.frosttestapp.ipv8.message.*
 import nl.tudelft.ipv8.Community
 import nl.tudelft.ipv8.Peer
@@ -43,10 +44,10 @@ data class FrostGroup(
         get() = members.size + 1 // we are not included here
 }
 
-typealias OnJoinRequestCallBack = (Peer, RequestToJoinMessage) -> Unit
-typealias onJoinRequestResponseCallback = (Peer, RequestToJoinResponseMessage) -> Unit
+//typealias OnJoinRequestCallBack = (Peer, RequestToJoinMessage) -> Unit
+//typealias onJoinRequestResponseCallback = (Peer, RequestToJoinResponseMessage) -> Unit
 
-class FrostCommunity : Community() {
+class FrostCommunity: Community() {
     override val serviceId: String
         get() = "5ce0aab9123b60537030b1312783a0ebcf5fd92f"
 
@@ -68,7 +69,10 @@ class FrostCommunity : Community() {
         lastResponseFrom[peer.mid] = Date()
     }
 
-
+    lateinit var  db: FrostDatabase
+    fun initDb(db: FrostDatabase){
+        this.db = db
+    }
     init {
         //todo maybe deserialize
         messageHandlers[RequestToJoinMessage.MESSAGE_ID] = {packet ->
@@ -127,8 +131,35 @@ class FrostCommunity : Community() {
             scope.launch {
                 _channel.emit(pair)
             }
+
+        }
+        messageHandlers[GossipRequest.MESSAGE_ID] = { packet ->
+            val (peer,msg) = packet.getAuthPayload(GossipRequest.Deserializer)
+            //todo check this
+            scope.launch {
+                db.receivedMessageDao()
+                    .getAllAfterTime(msg.afterUnixTime)
+                    .forEach {
+                        launch {
+                            delay(20)
+                            send(peer,it.data)
+                        }
+                    }
+            }
+
         }
 
+        messageHandlers[GossipResponse.MESSAGE_ID] = {packet ->
+            val (peer,msg) = packet.getAuthPayload(GossipResponse.Deserializer)
+            getPeers().find{
+                it.mid == msg.originallyFromMid
+            }// so if we now the peer, then we should do something. Otherwise it probably doesn't matter
+                ?.also {originalPeer ->
+                scope.launch {
+                    _channel.emit(originalPeer to msg.payload)
+                }
+            }
+        }
 
 
         evaProtocolEnabled = true
@@ -149,6 +180,21 @@ class FrostCommunity : Community() {
                 messageHandlers[data[0].toInt()]?.let { it1 -> it1(packet) }
             }
         }
+        scope.launch {
+        val delayAmount = 5 * 60 * 1000L
+          while (true){
+              delay(delayAmount)
+              //after 2 min ( so everything loads), as send gossiprequest
+              val request = GossipRequest(Date().time / 1000)
+              val packet = serializePacket(GossipRequest.MESSAGE_ID,request)
+              for (peer in getPeers()) {
+                  scope.launch(Dispatchers.Default) {
+                      send(peer,packet)
+                  }
+                  sent[peer.mid to request.hashCode()] = true
+              }
+          }
+          }
     }
 
 

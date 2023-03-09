@@ -13,6 +13,7 @@ import androidx.navigation.ui.setupWithNavController
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.squareup.sqldelight.android.AndroidSqliteDriver
 import dagger.hilt.android.AndroidEntryPoint
+import me.rahimklaber.frosttestapp.database.FrostDatabase
 import me.rahimklaber.frosttestapp.databinding.ActivityOverviewBinding
 import me.rahimklaber.frosttestapp.ipv8.FrostCommunity
 import nl.tudelft.ipv8.IPv8Configuration
@@ -32,13 +33,15 @@ import nl.tudelft.ipv8.peerdiscovery.strategy.RandomWalk
 import nl.tudelft.ipv8.sqldelight.Database
 import nl.tudelft.ipv8.util.hexToBytes
 import nl.tudelft.ipv8.util.toHex
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class Overview : AppCompatActivity() {
 
     private lateinit var binding: ActivityOverviewBinding
 
-    //    @Inject private lateinit var db: FrostDatabase
+        @Inject
+         lateinit var db: FrostDatabase
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         System.loadLibrary("rust_code")
@@ -53,7 +56,9 @@ class Overview : AppCompatActivity() {
 
 
         initIPv8()
-
+        val frostCommunity = IPv8Android.getInstance().getOverlay<FrostCommunity>()
+            ?: error("FROSTCOMMUNITY should be initialized")
+        frostCommunity.initDb(db)
         binding = ActivityOverviewBinding.inflate(layoutInflater)
         setContentView(binding.root)
 

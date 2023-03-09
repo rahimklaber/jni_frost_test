@@ -249,46 +249,48 @@ class FrostManager(
         val signId = Random.nextLong()
 //        state = FrostState.ProposedSign(signId)
 
-        val job = scope.launch {
-            var responseCounter = 0
-            val mutex = Mutex(true)
-            val participatingIndices = mutableListOf<Int>()
-            val callbacId = addOnSignRequestResponseCallbac { peer, signRequestResponse ->
-                if (signRequestResponse.id != signId){
-                    return@addOnSignRequestResponseCallbac
+         scope.launch {
+            withTimeout(10*60/*10 minutes timeout todo make it configurable*/) {
+                var responseCounter = 0
+                val mutex = Mutex(true)
+                val participatingIndices = mutableListOf<Int>()
+                val callbacId = addOnSignRequestResponseCallbac { peer, signRequestResponse ->
+                    if (signRequestResponse.id != signId){
+                        return@addOnSignRequestResponseCallbac
+                    }
+                    if (signRequestResponse.ok)
+                        responseCounter += 1
+                    participatingIndices.add(
+                        frostInfo?.getIndex(peer.mid)
+                            ?: error(" FrostInfo is null. This is a bug. Maybe you are trying to sign without having first joined a group")
+                    )
+                    if (responseCounter >= frostInfo!!.threshold - 1) {
+                        mutex.unlock()
+                    }
                 }
-                if (signRequestResponse.ok)
-                    responseCounter += 1
-                participatingIndices.add(
-                    frostInfo?.getIndex(peer.mid)
-                        ?: error(" FrostInfo is null. This is a bug. Maybe you are trying to sign without having first joined a group")
+                networkManager.broadcast(SignRequest(signId, data))
+                mutex.lock()// make sure that enough peeps are available
+
+                onSignRequestResponseCallbacks.remove(callbacId)
+
+                Log.d("FROST", "started sign")
+
+                val agentSendChannel = Channel<SchnorrAgentMessage>(1)
+                val agentReceiveChannel = Channel<SchnorrAgentOutput>(1)
+
+                signJobs[signId] = startSign(
+                    signId, data,
+                    agentSendChannel, agentReceiveChannel,
+                    true,
+                    (participatingIndices.plus(
+                        frostInfo?.myIndex
+                            ?: error(" FrostInfo is null. This is a bug. Maybe you are trying to sign without having first joined a group")
+                    ))
                 )
-                if (responseCounter >= frostInfo!!.threshold - 1) {
-                    mutex.unlock()
-                }
             }
-            networkManager.broadcast(SignRequest(signId, data))
-            mutex.lock()// make sure that enough peeps are available
-
-            onSignRequestResponseCallbacks.remove(callbacId)
-
-            Log.d("FROST", "started sign")
-
-            val agentSendChannel = Channel<SchnorrAgentMessage>(1)
-            val agentReceiveChannel = Channel<SchnorrAgentOutput>(1)
-
-            signJob = startSign(
-                signId, data,
-                agentSendChannel, agentReceiveChannel,
-                true,
-                (participatingIndices.plus(
-                    frostInfo?.myIndex
-                        ?: error(" FrostInfo is null. This is a bug. Maybe you are trying to sign without having first joined a group")
-                ))
-            )
         }
 
-        signJobs[signId] = job
+
         return true to signId
     }
 

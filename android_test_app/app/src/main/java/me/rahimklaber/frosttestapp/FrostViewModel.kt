@@ -15,9 +15,17 @@ import me.rahimklaber.frosttestapp.ipv8.Update
 import me.rahimklaber.frosttestapp.ipv8.message.*
 import java.util.*
 
+enum class ProposalState {
+    Done,
+    Started,
+    Rejected,
+    Cancelled,
+    TimedOut
+}
+
 sealed interface Proposal{
     val fromMid: String
-
+    var state: ProposalState
     fun type() : String
 }
 
@@ -26,13 +34,15 @@ data class SignProposal(
     override val fromMid: String,
     val msg: ByteArray,
     val signed: Boolean = false,
-    val signatureHex: String = ""
+    val signatureHex: String = "",
+    override var state: ProposalState = ProposalState.Started
 ) : Proposal {
     override fun type(): String = "Sign"
 }
 
 data class JoinProposal(
-    override val fromMid: String
+    override val fromMid: String,
+    override var state: ProposalState
 ) : Proposal {
     override fun type(): String = "Join"
 
@@ -49,7 +59,7 @@ enum class FrostPeerStatus(val color: Color) {
 
 
 class FrostViewModel(
-    private val frostCommunity: FrostCommunity,
+     val frostCommunity: FrostCommunity,
     val frostManager: FrostManager
 ) : ViewModel() {
     var state by mutableStateOf(frostManager.state)

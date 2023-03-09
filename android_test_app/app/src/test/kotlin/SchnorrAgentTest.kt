@@ -11,6 +11,7 @@ class SchnorrAgentTest{
 
     @Test
     fun `frost test`() = runBlocking {
+        //todo don't hardcode path. also shared lib only works on linux
         System.load("/home/rahim/jni_frost_test/android_test_app/app/src/test/kotlin/librust_code.so")
         withContext(Dispatchers.Default){
             val amount = 11
