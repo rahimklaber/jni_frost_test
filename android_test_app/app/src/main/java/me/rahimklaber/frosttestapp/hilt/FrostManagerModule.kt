@@ -2,6 +2,7 @@ package me.rahimklaber.frosttestapp.hilt
 
 import android.content.Context
 import android.util.Log
+import android.widget.Toast
 import androidx.room.Room
 import dagger.Module
 import dagger.Provides
@@ -28,7 +29,7 @@ import javax.inject.Singleton
 object FrostManagerModule {
     @Provides
     @Singleton
-    fun provideFrostViewModel(db: FrostDatabase) : FrostViewModel {
+    fun provideFrostViewModel(db: FrostDatabase, @ApplicationContext app: Context) : FrostViewModel {
         val frostCommunity = IPv8Android.getInstance().getOverlay<FrostCommunity>()
             ?: error("FROSTCOMMUNITY should be initialized")
         val frostManager = FrostManager(frostCommunity.getMsgChannel(),
@@ -95,7 +96,9 @@ object FrostManagerModule {
 
             },
         )
-        return FrostViewModel(frostCommunity,frostManager)
+        return FrostViewModel(frostCommunity,frostManager){
+            Toast.makeText(app,it,Toast.LENGTH_LONG).show()
+        }
     }
     @Provides
     @Singleton

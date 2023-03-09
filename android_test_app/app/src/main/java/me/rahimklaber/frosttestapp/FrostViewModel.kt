@@ -60,7 +60,8 @@ enum class FrostPeerStatus(val color: Color) {
 
 class FrostViewModel(
      val frostCommunity: FrostCommunity,
-    val frostManager: FrostManager
+    val frostManager: FrostManager,
+    val toastMaker : (String) -> Unit
 ) : ViewModel() {
     var state by mutableStateOf(frostManager.state)
     var index by mutableStateOf(frostManager.frostInfo?.myIndex)
@@ -198,6 +199,11 @@ class FrostViewModel(
                                 )
                             )
                         }
+                    }
+                    is Update.TimeOut -> {
+                        refreshFrostData()
+
+                        Log.d("FROST","Timed out action with id ${it.id}")
                     }
                 }
             }

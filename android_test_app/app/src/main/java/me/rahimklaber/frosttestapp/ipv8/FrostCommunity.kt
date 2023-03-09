@@ -137,8 +137,8 @@ class FrostCommunity: Community() {
             val (peer,msg) = packet.getAuthPayload(GossipRequest.Deserializer)
             //todo check this
             scope.launch {
-                db.receivedMessageDao()
-                    .getAllAfterTime(msg.afterUnixTime)
+                db.requestDao()
+                    .getNotDoneAndReceivedAfterTime(msg.afterUnixTime.toInt())
                     .forEach {
                         launch {
                             delay(20)

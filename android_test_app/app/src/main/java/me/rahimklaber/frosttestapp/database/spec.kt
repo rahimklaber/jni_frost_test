@@ -21,7 +21,6 @@ data class Me(
     @ColumnInfo("frost_threshold") val frostThresholod: Int,
     @ColumnInfo("frost_n") val frostN: Int,
     @ColumnInfo("frost_members") val frostMembers: List<String>,//list of mids of members excluding me
-
 )
 
 @Entity
@@ -31,8 +30,9 @@ data class Request(
     @ColumnInfo("from_mid") val fromMid: String,
     @ColumnInfo("data", typeAffinity = ColumnInfo.BLOB) val data: ByteArray, // this is bassically the serialized msg
     @ColumnInfo("type") val type: Int,
-    @ColumnInfo("request_id") val requestId: Long // same as message_id
-)
+    @ColumnInfo("request_id") val requestId: Long, // same as message_id
+    @ColumnInfo("done") val done: Boolean = false
+    )
 
 @Entity
 data class ReceivedMessage(

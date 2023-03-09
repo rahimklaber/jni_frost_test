@@ -15,4 +15,7 @@ interface RequestDao {
 
     @Query("select * from request where unix_time > :afterUnixTime")
     fun getAllAfterTime(afterUnixTime: Int): List<Request>
+
+    @Query("select * from request where unix_time > :afterUnixTime and done")
+    fun getNotDoneAndReceivedAfterTime(afterUnixTime: Int): List<Request>
 }
