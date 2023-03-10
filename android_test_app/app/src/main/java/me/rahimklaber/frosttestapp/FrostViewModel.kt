@@ -102,7 +102,7 @@ class FrostViewModel(
                         }
                         else if (lastResponseTimeMillis == null){
                             stateMap[mid] = FrostPeerStatus.NonResponsive
-                        }else if(lastResponseTimeMillis -now.time < 600_000){
+                        }else if(lastResponseTimeMillis -now.time < 60_000){
                             stateMap[mid] = FrostPeerStatus.Available
                         }else{
                             stateMap[mid] = FrostPeerStatus.NonResponsive
@@ -202,7 +202,7 @@ class FrostViewModel(
                     }
                     is Update.TimeOut -> {
                         refreshFrostData()
-
+                        toastMaker("timed out")
                         Log.d("FROST","Timed out action with id ${it.id}")
                     }
                 }

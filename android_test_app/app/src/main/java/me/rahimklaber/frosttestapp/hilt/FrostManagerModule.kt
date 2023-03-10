@@ -9,6 +9,9 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import me.rahimklaber.frosttestapp.FrostViewModel
 import me.rahimklaber.frosttestapp.database.FrostDatabase
 import me.rahimklaber.frosttestapp.database.Request
@@ -97,7 +100,9 @@ object FrostManagerModule {
             },
         )
         return FrostViewModel(frostCommunity,frostManager){
-            Toast.makeText(app,it,Toast.LENGTH_LONG).show()
+            GlobalScope.launch(Dispatchers.Main) {
+                Toast.makeText(app,it,Toast.LENGTH_LONG).show()
+            }
         }
     }
     @Provides

@@ -201,28 +201,32 @@ class FrostManager(
 
         scope.launch(Dispatchers.Default) {
             val storedMe = db.meDao().get()
-            if (storedMe != null){
-                agent = SchnorrAgent(storedMe.frostKeyShare,storedMe.frostN,storedMe.frostIndex,storedMe.frostThresholod, agentSendChannel, agentReceiveChannel)
-                dbMe = storedMe
-//                delay(5000)
-                frostInfo = FrostGroup(
-                    members = storedMe.frostMembers.map {
-                        val (mid, indexstr) = it.split("#").take(2)
-                        FrostMemberInfo(
-                           mid,
-                            indexstr.toInt()
-                        )
-                    },
-                    threshold = dbMe.frostThresholod,
-                    myIndex = dbMe.frostIndex
-                )
-                state = FrostState.ReadyForSign
-            }else{
-                dbMe = Me(
-                    -1,
-                    byteArrayOf(0),0,1,1, listOf("")
-                )
-            }
+            dbMe = Me(
+                -1,
+                byteArrayOf(0),0,1,1, listOf("")
+            )
+//            if (storedMe != null){
+//                agent = SchnorrAgent(storedMe.frostKeyShare,storedMe.frostN,storedMe.frostIndex,storedMe.frostThresholod, agentSendChannel, agentReceiveChannel)
+//                dbMe = storedMe
+////                delay(5000)
+//                frostInfo = FrostGroup(
+//                    members = storedMe.frostMembers.map {
+//                        val (mid, indexstr) = it.split("#").take(2)
+//                        FrostMemberInfo(
+//                           mid,
+//                            indexstr.toInt()
+//                        )
+//                    },
+//                    threshold = dbMe.frostThresholod,
+//                    myIndex = dbMe.frostIndex
+//                )
+//                state = FrostState.ReadyForSign
+//            }else{
+//                dbMe = Me(
+//                    -1,
+//                    byteArrayOf(0),0,1,1, listOf("")
+//                )
+//            }
         }
 
     }
@@ -410,8 +414,16 @@ class FrostManager(
         }
         if(!isProposer)
             mutex.lock()
-        agent!!.startSigningSession(signId.toInt(),data, byteArrayOf(), agentSendChannel,agentReceiveChannel)
+        val signDone =withTimeoutOrNull(SIGN_TIMEOUT_MILLIS){
+            agent!!.startSigningSession(signId.toInt(),data, byteArrayOf(), agentSendChannel,agentReceiveChannel)
+        }
+        if (signDone == null){
+            state = FrostState.ReadyForSign
+            cancel()
+        }
         state = FrostState.ReadyForSign
+        // wait for a second to allow for buffers to clear
+        delay(1000)
         cancel()
 
     }
@@ -456,7 +468,13 @@ class FrostManager(
             for (agentOutput in agentReceiveChannel) {
                 Log.d("FROST", "sending $agentOutput")
                 when(agentOutput){
-                    is SchnorrAgentOutput.DkgShare -> networkManager.send(networkManager.getPeerFromMid(getMidFromIndex(agentOutput.forIndex)),KeyGenShare(joinId,agentOutput.share))
+                    is SchnorrAgentOutput.DkgShare -> {
+                        networkManager.send(
+                            networkManager.getPeerFromMid(getMidFromIndex(agentOutput.forIndex)),
+                            KeyGenShare(joinId, agentOutput.share)
+                        )
+                        delay(50)
+                    }
                     is SchnorrAgentOutput.KeyCommitment -> networkManager.broadcast(KeyGenCommitments(joinId,agentOutput.commitment))
                     is SchnorrAgentOutput.KeyGenDone -> {
                         state = FrostState.ReadyForSign
@@ -474,7 +492,7 @@ class FrostManager(
             }
             // we did not receive signal to start before timeout
             if (receivedSignal == null){
-                state = FrostState.ReadyForSign
+                state = FrostState.ReadyForKeyGen
                 scope.launch {
                     updatesChannel.emit(Update.TimeOut(id))
                 }

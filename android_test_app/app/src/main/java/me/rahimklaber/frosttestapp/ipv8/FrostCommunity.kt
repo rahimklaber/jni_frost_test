@@ -221,7 +221,6 @@ class FrostCommunity: Community() {
         val packet = serializePacket(id,msg)
         scope.launch(Dispatchers.Default) {
             repeat(10){
-                delay(50)
                 send(peer,packet)
             }
         }
