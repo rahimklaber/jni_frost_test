@@ -102,7 +102,7 @@ class FrostViewModel(
                         }
                         else if (lastResponseTimeMillis == null){
                             stateMap[mid] = FrostPeerStatus.NonResponsive
-                        }else if(lastResponseTimeMillis -now.time < 60_000){
+                        }else if(now.time  -lastResponseTimeMillis  < 60_000){
                             stateMap[mid] = FrostPeerStatus.Available
                         }else{
                             stateMap[mid] = FrostPeerStatus.NonResponsive
@@ -241,6 +241,20 @@ class FrostViewModel(
         if(prop == null){
             Log.d("FROST", "cold not accept sign proposal. We could not find a proposal with this id")
             return
+        }
+
+        when (val x = lastHeardFrom[prop.fromMid]){
+            null -> {
+                toastMaker("Proposer of request is offline! Not accepting.")
+                return
+            }
+            else  -> {
+                // don't do anything if we haven't heard from the other peer in 2 minutes
+                if((Date().time / 1000) - x > 120){
+                    toastMaker("We have not heard from peer in 2 minutes. Not sending accept message.")
+                    return
+                }
+            }
         }
 
         frostManager.acceptProposedSign(prop.id,prop.fromMid,prop.msg)
