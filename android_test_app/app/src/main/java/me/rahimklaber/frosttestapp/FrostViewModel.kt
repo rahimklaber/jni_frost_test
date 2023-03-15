@@ -7,10 +7,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import me.rahimklaber.frosttestapp.ipv8.FrostCommunity
 import me.rahimklaber.frosttestapp.ipv8.FrostManager
+import me.rahimklaber.frosttestapp.ipv8.FrostState
 import me.rahimklaber.frosttestapp.ipv8.Update
 import me.rahimklaber.frosttestapp.ipv8.message.*
 import java.util.*
@@ -24,13 +29,14 @@ enum class ProposalState {
 }
 
 sealed interface Proposal{
+    val id: Long
     val fromMid: String
     var state: ProposalState
     fun type() : String
 }
 
 data class SignProposal(
-    val id: Long,
+    override val id: Long,
     override val fromMid: String,
     val msg: ByteArray,
     val signed: Boolean = false,
@@ -41,6 +47,7 @@ data class SignProposal(
 }
 
 data class JoinProposal(
+    override val id: Long,
     override val fromMid: String,
     override var state: ProposalState
 ) : Proposal {
@@ -202,7 +209,7 @@ class FrostViewModel(
                     }
                     is Update.TimeOut -> {
                         refreshFrostData()
-                        toastMaker("timed out")
+                        toastMaker("action with ${it.id} timed out")
                         Log.d("FROST","Timed out action with id ${it.id}")
                     }
                 }
@@ -259,4 +266,43 @@ class FrostViewModel(
 
         frostManager.acceptProposedSign(prop.id,prop.fromMid,prop.msg)
     }
+
+    // remove ongong actions
+    suspend fun panic(){
+       frostManager.keyGenJob?.cancel()
+        frostManager.signJobs.forEach {
+            it.value.cancel()
+        }
+        frostManager.onJoinRequestResponseCallbacks.clear()
+        frostManager.onKeyGenCommitmentsCallBacks.clear()
+        frostManager.onKeyGenShareCallbacks.clear()
+        frostManager.onPreprocessCallbacks.clear()
+        frostManager.onSignShareCallbacks.clear()
+        frostManager.onSignRequestCallbacks.clear()
+        frostManager.onSignRequestResponseCallbacks.clear()
+
+        if (frostManager.frostInfo == null){
+            frostManager.state = FrostState.ReadyForKeyGen
+        }else{
+            frostManager.state = FrostState.ReadyForSign
+        }
+    }
+
+//    suspend fun checkStatus(id: Long){
+//        val prop = proposals.find { it.id == id } as SignProposal? ?: run{
+//            toastMaker("We do not know about this proposal")
+//            return
+//        }
+//        val peer = frostCommunity.getPeers().find { it.mid == prop.fromMid } ?: run {
+//            toastMaker("The peer may be offline")
+//            return
+//        }
+//        withTimeoutOrNull(10_000){
+//            frostCommunity.getMsgChannel().collect {
+//                if (it.second is )
+//            }
+//        }
+//        frostCommunity.sendProposalStatusRequest(peer, ProposalStatusRequest(id))
+//
+//    }
 }

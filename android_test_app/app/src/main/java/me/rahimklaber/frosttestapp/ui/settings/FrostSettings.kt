@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
@@ -62,13 +63,28 @@ class FrostSettings : Fragment() {
                             }
                         }
 //                        Box(modifier = Modifier.fillMaxHeight())
-                        Button(onClick = {
-                            frostViewModel.viewModelScope.launch(Dispatchers.Default) {
-                                frostViewModel.frostManager.joinGroup()
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center
+                        ){
+                            Button(onClick = {
+                                frostViewModel.viewModelScope.launch(Dispatchers.Default) {
+                                    frostViewModel.frostManager.joinGroup()
+                                }
+                            }) {
+                                Text(text = "Join Group")
                             }
-                        }) {
-                            Text(text = "Join Group")
+
+                            Button(onClick = {
+                                frostViewModel.viewModelScope.launch(Dispatchers.Default) {
+                                    frostViewModel.panic()
+                                }
+                            }) {
+                                Text(text = "Panic")
+                            }
+
                         }
+
 
                         ActivityGrid(frostViewModel)
                     }

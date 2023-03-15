@@ -3,9 +3,7 @@ package me.rahimklaber.frosttestapp.ipv8
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import me.rahimklaber.frosttestapp.database.FrostDatabase
 import me.rahimklaber.frosttestapp.ipv8.message.*
@@ -53,13 +51,7 @@ class FrostCommunity: Community() {
     private val _channel = MutableSharedFlow<Pair<Peer,FrostMessage>>(extraBufferCapacity = 10000) //todo check this
     //todo this should be a mutable flow
     fun getMsgChannel(): Flow<Pair<Peer, FrostMessage>> {
-        return _channel.filter {(peer, msg) ->
-            val contains = received.containsKey(peer.mid to msg.hashCode())
-            if (!contains){
-                received[peer.mid to msg.hashCode()]=true
-                true
-            }else{false}
-        }
+        return _channel
     }
     val lastResponseFrom = mutableMapOf<String,Date>()
 
@@ -72,7 +64,22 @@ class FrostCommunity: Community() {
     fun initDb(db: FrostDatabase){
         this.db = db
     }
+
+    var onAckCbId = 0;
+    val onAckCallbacks= mutableMapOf<Int,suspend (peer: Peer,ack:Ack)->Unit>()
+    //todo, check if we need to lock
+    fun addOnAck(cb: suspend (peer: Peer,ack:Ack)->Unit) : Int{
+       val id = onAckCbId++;
+       onAckCallbacks[id]  = cb
+        return id
+    }
+
+    fun removeOnAck(id: Int){
+        onAckCallbacks.remove(id)
+    }
+
     init {
+
         //todo maybe deserialize
         messageHandlers[RequestToJoinMessage.MESSAGE_ID] = {packet ->
             val pair = packet.getAuthPayload(RequestToJoinMessage.Deserializer)
@@ -170,7 +177,11 @@ class FrostCommunity: Community() {
                 }
         }
 
-
+        messageHandlers[Ack.MESSAGE_ID] = {packet ->
+            Log.d("FROST", "Received Ack")
+            val (peer,msg) = packet.getAuthPayload(Ack.Deserializer)
+            onAckCallbacks.forEach { (i, callback) -> scope.launch(Dispatchers.Default){  callback(peer,msg) }}
+        }
         evaProtocolEnabled = true
     }
 
@@ -187,6 +198,12 @@ class FrostCommunity: Community() {
                 val packet = Packet(peer.address, data.takeInRange(1, data.size))
 
                 messageHandlers[data[0].toInt()]?.let { it1 -> it1(packet) }
+            }
+        }
+        scope.launch(Dispatchers.Default){
+            _channel.collect{(peer,msg)->
+                Log.d("FROST","sending ack for $msg")
+                sendAck(peer, Ack(msg.hashCode()))
             }
         }
         scope.launch(Dispatchers.Default) {
@@ -227,18 +244,28 @@ class FrostCommunity: Community() {
     val received  = mutableMapOf<Pair<String,Int>,Boolean>()
     // better name lol
     fun sendForPublic(peer: Peer, msg: FrostMessage) {
+//        Log.d("FROST", "sending msg $msg in community")
         val id = messageIdFromMsg(msg)
         val packet = serializePacket(id,msg)
-        scope.launch(Dispatchers.Default) {
-            repeat(10){
-                send(peer,packet)
-            }
-        }
+//        scope.launch(Dispatchers.Default) {
+//            repeat(10){
+//
+//            }
+//        }
+        send(peer,packet)
         sent[peer.mid to msg.hashCode()] = true
 
     }
 
+    fun sendProposalStatusRequest(peer: Peer ,request: ProposalStatusRequest){
+        val packet = serializePacket(ProposalStatusRequest.MESSAGE_ID,request)
+        send(peer,packet)
+    }
 
+    fun sendAck(peer: Peer,ack: Ack){
+        val packet = serializePacket(Ack.MESSAGE_ID,ack)
+        send(peer,packet)
+    }
 
 
     fun broadcast(msg : FrostMessage){
@@ -247,10 +274,7 @@ class FrostCommunity: Community() {
         val packet = serializePacket(messageIdFromMsg(msg),msg)
         for (peer in getPeers()) {
            scope.launch(Dispatchers.Default) {
-               repeat(10){
-                   delay(50)
                    send(peer,packet)
-               }
            }
             sent[peer.mid to msg.hashCode()] = true
         }

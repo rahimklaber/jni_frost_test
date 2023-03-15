@@ -9,9 +9,11 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.selects.whileSelect
+import kotlinx.coroutines.sync.Mutex
 import me.rahimklaber.frosttestapp.FrostViewModel
 import me.rahimklaber.frosttestapp.database.FrostDatabase
 import me.rahimklaber.frosttestapp.database.Request
@@ -35,11 +37,12 @@ object FrostManagerModule {
     fun provideFrostViewModel(db: FrostDatabase, @ApplicationContext app: Context) : FrostViewModel {
         val frostCommunity = IPv8Android.getInstance().getOverlay<FrostCommunity>()
             ?: error("FROSTCOMMUNITY should be initialized")
-        val frostManager = FrostManager(frostCommunity.getMsgChannel(),
+        val frostManager = FrostManager(
+            frostCommunity.getMsgChannel(),
             db = db,
-            networkManager = object : NetworkManager {
-                override fun send(peer: Peer, msg: FrostMessage) {
-                    Log.d("FROST","sending: $msg")
+            networkManager = object : NetworkManager() {
+                override suspend fun send(peer: Peer, msg: FrostMessage): Boolean {
+                    Log.d("FROST", "sending: $msg")
                     db.sentMessageDao().insertSentMessage(
                         SentMessage(
                             toMid = peer.mid,
@@ -50,7 +53,7 @@ object FrostManagerModule {
                             unixTime = Date().time / 1000 // in seconds
                         )
                     )
-                    if (messageIdFromMsg(msg) == SignRequest.MESSAGE_ID){
+                    if (messageIdFromMsg(msg) == SignRequest.MESSAGE_ID) {
                         db.requestDao()
                             .insertRequest(
                                 Request(
@@ -62,11 +65,48 @@ object FrostManagerModule {
                                 )
                             )
                     }
+                    val done = CompletableDeferred<Unit>(null)
+                    val cbId = frostCommunity.addOnAck { peer, ack ->
+                        Log.d("FROST","in ack cb")
+                        if (ack.hashCode == msg.hashCode()){
+                            Log.d("FROST","received ack for $msg")
+                            done.complete(Unit)
+                        }
+                    }
+
                     frostCommunity.sendForPublic(peer, msg)
+
+                    for (i in 0..5) {
+                        val x = select {
+                            onTimeout(1000) {
+                                Log.d("FROST","resending $msg $i th time")
+                                frostCommunity.sendForPublic(peer, msg)
+                                false
+                            }
+                            done.onAwait {
+                                true
+                            }
+                        }
+                        if (x)
+                            break
+
+                    }
+
+                    if (!done.isCompleted)
+                    {
+                        // wait for 1 sec to see if a msg arrives
+                        // deals with the case where the msgs timed out, but we resend it in the last iteration of the loop
+                        delay(1000)
+                    }
+
+                    frostCommunity.removeOnAck(cbId)
+
+                    return done.isCompleted
+
                 }
 
-                override fun broadcast(msg: FrostMessage) {
-                    Log.d("FROST","broadcasting: $msg")
+                override suspend fun broadcast(msg: FrostMessage): Boolean {
+                    Log.d("FROST", "broadcasting: $msg")
                     db.sentMessageDao().insertSentMessage(
                         SentMessage(
                             toMid = null,
@@ -77,7 +117,7 @@ object FrostManagerModule {
                             unixTime = Date().time / 1000 // in seconds
                         )
                     )
-                    if (messageIdFromMsg(msg) == SignRequest.MESSAGE_ID){
+                    if (messageIdFromMsg(msg) == SignRequest.MESSAGE_ID) {
                         db.requestDao()
                             .insertRequest(
                                 Request(
@@ -89,7 +129,57 @@ object FrostManagerModule {
                                 )
                             )
                     }
-                    frostCommunity.broadcast(msg)
+                    val workScope = CoroutineScope(Dispatchers.Default)
+                    val deferreds = frostCommunity.getPeers().map { peer ->
+                        workScope.async {
+                            val done = CompletableDeferred<Unit>(null)
+                            val cbId = frostCommunity.addOnAck { peer, ack ->
+                                //todo, need to also check the peer when broadcasting
+                                if (ack.hashCode == msg.hashCode()){
+                                    Log.d("FROST","received ack for $msg")
+
+                                    done.complete(Unit)
+                                }
+                            }
+
+                            frostCommunity.sendForPublic(peer, msg)
+
+                            for (i in 0..5) {
+                                val x = select {
+                                    onTimeout(1000) {
+                                        //todo what if this is the last iteration
+                                        frostCommunity.sendForPublic(peer, msg)
+                                        false
+                                    }
+                                    done.onAwait {
+                                        true
+                                    }
+                                }
+                                if (x)
+                                    break
+
+                            }
+                            if (!done.isCompleted)
+                            {
+                                // wait for 1 sec to see if a msg arrives
+                                // deals with the case where the msgs timed out, but we resend it in the last iteration of the loop
+                                delay(1000)
+                            }
+                            frostCommunity.removeOnAck(cbId)
+                            done.isCompleted
+                        }
+                    }
+
+                    for (deferred in deferreds) {
+                        // failed
+                        if(!deferred.await()){
+                            workScope.cancel()
+                            return false
+                        }
+                    }
+                    //success
+                    return true
+
                 }
 
                 override fun getMyPeer(): Peer = frostCommunity.myPeer

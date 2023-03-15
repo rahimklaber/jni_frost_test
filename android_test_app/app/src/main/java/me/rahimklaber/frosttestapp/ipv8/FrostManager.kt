@@ -19,17 +19,17 @@ import nl.tudelft.ipv8.util.toHex
 import java.util.*
 import kotlin.random.Random
 import kotlin.reflect.KClass
-import kotlin.reflect.KFunction2
 
 
 fun FrostGroup.getIndex(mid: String) = members.find { it.peer == mid }?.index
 fun FrostGroup.getMidForIndex(index: Int) = members.find { it.index == index }?.peer
 
-interface NetworkManager{
-    fun send(peer: Peer, msg: FrostMessage)
-    fun broadcast(msg: FrostMessage)
-    fun getMyPeer() : Peer
-    fun getPeerFromMid(mid: String) : Peer
+abstract class NetworkManager{
+    val defaultScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    abstract suspend fun send(peer: Peer, msg: FrostMessage): Boolean
+    abstract suspend fun broadcast(msg: FrostMessage): Boolean
+    abstract fun getMyPeer() : Peer
+    abstract fun getPeerFromMid(mid: String) : Peer
 }
 sealed interface Update{
     data class KeyGenDone(val pubkey: String) : Update
@@ -95,17 +95,26 @@ class FrostManager(
 ) {
     var frostInfo: FrostGroup? = null
 //        get() = getFrostInfo()
-    val map: Map<KClass<out FrostMessage>, KFunction2<Peer, FrostMessage, Unit>> = mapOf(
-        RequestToJoinMessage::class to ::processRequestToJoin,
-        RequestToJoinResponseMessage::class to ::processRequestToJoinResponse,
-        KeyGenCommitments::class to ::processKeyGenCommitments,
-        KeyGenShare::class to ::processKeyGenShare,
-        SignShare::class to ::processSignShare,
-        Preprocess::class to ::processPreprocess,
-        SignRequest::class to ::processSignRequest,
-        SignRequestResponse::class to ::processSignRequestResponse
-    ) as Map<KClass<out FrostMessage>, KFunction2<Peer, FrostMessage, Unit>>
+    val msgProcessMap: MutableMap<KClass< out FrostMessage>, suspend (Peer,FrostMessage)->Unit> = mutableMapOf(
 
+    )
+
+    init {
+        msgProcessMap[RequestToJoinMessage::class] = {peer, msg -> processRequestToJoin(peer,
+            msg as RequestToJoinMessage
+        )}
+        msgProcessMap[RequestToJoinResponseMessage::class] = {peer, msg -> processRequestToJoinResponse(peer,
+            msg as RequestToJoinResponseMessage
+        )}
+        msgProcessMap[KeyGenCommitments::class] = {peer, msg -> processKeyGenCommitments(peer, msg as KeyGenCommitments)}
+        msgProcessMap[KeyGenShare::class] = {peer, msg -> processKeyGenShare(peer, msg as KeyGenShare)}
+        msgProcessMap[SignShare::class] = {peer, msg -> processSignShare(peer, msg as SignShare)}
+        msgProcessMap[Preprocess::class] = {peer, msg -> processPreprocess(peer, msg as Preprocess)}
+        msgProcessMap[SignRequest::class] = {peer, msg -> processSignRequest(peer, msg as SignRequest)}
+        msgProcessMap[SignRequestResponse::class] = {peer, msg -> processSignRequestResponse(peer,
+            msg as SignRequestResponse
+        )}
+    }
     var keyGenJob: Job? = null
     var signJob: Job? = null
 
@@ -139,11 +148,20 @@ class FrostManager(
         onKeyGenCommitmentsCallBacks[id] = cb
         return id
     }
+
+    fun removeKeyGenCommitmentsCallbacks(id: Int){
+        onKeyGenCommitmentsCallBacks.remove(id)
+    }
     fun addKeyGenShareCallback(cb: KeyGenShareCallback) : Int{
         val id = cbCounter++
         onKeyGenShareCallbacks[id] = cb
         return id
     }
+
+    fun removeKeyGenShareCallback(id: Int){
+        onKeyGenShareCallbacks.remove(id)
+    }
+
     fun removeJoinRequestResponseCallback(id: Int){
         onJoinRequestResponseCallbacks.remove(id)
     }
@@ -172,7 +190,7 @@ class FrostManager(
         scope.launch {
             receiveChannel
                 .collect {
-                    Log.d("FROST", "received msg in frostmanager ${it.second}")
+//                    Log.d("FROST", "received msg in frostmanager ${it.second}")
                     db.receivedMessageDao()
                         .insertReceivedMessage(
                             ReceivedMessage(
@@ -356,7 +374,6 @@ class FrostManager(
 
         // whether we received a preprocess msg from the initiator
         // this signals the other peers to start
-        var receivedFromInitiator = false
         val participantIndices = participantIndices.toMutableList()
 
         addSignShareCallback { peer, msg ->
@@ -380,7 +397,6 @@ class FrostManager(
                 delay(200)
                 if (!isProposer && mutex.isLocked && preprocess.participants.isNotEmpty()) { // only the init message has size > 0
                     mutex.unlock()
-                    receivedFromInitiator = true
                     participantIndices.addAll(preprocess.participants)
                 }
                 agentSendChannel.send(
@@ -412,13 +428,25 @@ class FrostManager(
                 }
             }
         }
-        if(!isProposer)
-            mutex.lock()
+        if(!isProposer){
+            // wait for initial msg to signal that we can start
+            val lockReceived = withTimeoutOrNull(WAIT_FOR_INITIAL_PREPROCESS_MILLIS){
+                mutex.lock()
+            }
+
+            if (lockReceived == null){
+                state = FrostState.ReadyForSign
+                updatesChannel.emit(Update.TimeOut(signId))
+                cancel()
+            }
+        }
+
         val signDone =withTimeoutOrNull(SIGN_TIMEOUT_MILLIS){
             agent!!.startSigningSession(signId.toInt(),data, byteArrayOf(), agentSendChannel,agentReceiveChannel)
         }
         if (signDone == null){
             state = FrostState.ReadyForSign
+            updatesChannel.emit(Update.TimeOut(signId))
             cancel()
         }
         state = FrostState.ReadyForSign
@@ -450,32 +478,57 @@ class FrostManager(
         agent = SchnorrAgent(amount,index,midsOfNewGroup.size / 2 + 1, agentSendChannel, agentReceiveChannel)
 
         val mutex = Mutex(true)
-        addKeyGenCommitmentsCallbacks{ peer, msg ->
+        val commitmentCbId = addKeyGenCommitmentsCallbacks{ peer, msg ->
             launch {
-                delay(200)
+//                delay(200)
                 if (!isNew && mutex.isLocked)
                     mutex.unlock()
                 agentSendChannel.send(SchnorrAgentMessage.KeyCommitment(msg.byteArray,getIndex(peer.mid)))
             }
         }
-        addKeyGenShareCallback { peer, keyGenShare ->
+        val shareCbId = addKeyGenShareCallback { peer, keyGenShare ->
             launch {
 //                delay(200)
                 agentSendChannel.send(SchnorrAgentMessage.DkgShare(keyGenShare.byteArray,getIndex(peer.mid)))
             }
         }
+        fun fail(){
+            if (isNew){
+                state = FrostState.ReadyForKeyGen
+            }else{
+                state = FrostState.ReadyForSign
+            }
+            removeKeyGenCommitmentsCallbacks(commitmentCbId)
+            removeKeyGenShareCallback(shareCbId)
+            //todo timed out/ messaged dropped same thing?
+            scope.launch {
+                updatesChannel.emit(Update.TimeOut(id))
+            }
+            cancel()
+        }
         launch {
             for (agentOutput in agentReceiveChannel) {
-                Log.d("FROST", "sending $agentOutput")
+//                Log.d("FROST", "sending $agentOutput")
                 when(agentOutput){
                     is SchnorrAgentOutput.DkgShare -> {
-                        networkManager.send(
-                            networkManager.getPeerFromMid(getMidFromIndex(agentOutput.forIndex)),
-                            KeyGenShare(joinId, agentOutput.share)
-                        )
-                        delay(50)
+                       scope.launch {
+                           val ok = networkManager.send(
+                               networkManager.getPeerFromMid(getMidFromIndex(agentOutput.forIndex)),
+                               KeyGenShare(joinId, agentOutput.share)
+                           )
+                           if(!ok){
+                               fail()
+                           }
+                       }
                     }
-                    is SchnorrAgentOutput.KeyCommitment -> networkManager.broadcast(KeyGenCommitments(joinId,agentOutput.commitment))
+                    is SchnorrAgentOutput.KeyCommitment -> {
+                       scope.launch {
+                           val ok = networkManager.broadcast(KeyGenCommitments(joinId, agentOutput.commitment))
+                           if(!ok){
+                               fail()
+                           }
+                       }
+                    }
                     is SchnorrAgentOutput.KeyGenDone -> {
                         state = FrostState.ReadyForSign
                         updatesChannel.emit(Update.KeyGenDone(agentOutput.pubkey.toHex()))
@@ -492,11 +545,12 @@ class FrostManager(
             }
             // we did not receive signal to start before timeout
             if (receivedSignal == null){
-                state = FrostState.ReadyForKeyGen
-                scope.launch {
-                    updatesChannel.emit(Update.TimeOut(id))
-                }
-                cancel()
+//                state = FrostState.ReadyForKeyGen
+//                scope.launch {
+//                    updatesChannel.emit(Update.TimeOut(id))
+//                }
+//                cancel()
+                fail()
             }
         }
         val keygenDone = withTimeoutOrNull(KEYGEN_TIMEOUT_MILLIS){
@@ -505,15 +559,16 @@ class FrostManager(
 
         //timeout without being done
         if(keygenDone == null){
-            scope.launch {
-                updatesChannel.emit(Update.TimeOut(id))
-            }
-            state = if(isNew){
-                FrostState.ReadyForKeyGen
-            }else{
-                FrostState.ReadyForSign
-            }
-            cancel()
+//            scope.launch {
+//                updatesChannel.emit(Update.TimeOut(id))
+//            }
+//            state = if(isNew){
+//                FrostState.ReadyForKeyGen
+//            }else{
+//                FrostState.ReadyForSign
+//            }
+//            cancel()
+            fail()
         }
 
         this@FrostManager.frostInfo = FrostGroup(
@@ -553,7 +608,7 @@ class FrostManager(
         state = FrostState.ProposedJoin(joinId)
         updatesChannel.emit(Update.ProposedKeyGen(joinId))
 
-        scope.launch(Dispatchers.Default) {
+        val ok = scope.async(Dispatchers.Default) {
             // delay to start waiting before sending msg
             delay(1000)
             networkManager.broadcast(RequestToJoinMessage(joinId))
@@ -561,8 +616,10 @@ class FrostManager(
         val peersInGroup = withTimeoutOrNull(WAIT_FOR_KEYGEN_TIMEOUT_MILLIS ){
             waitForJoinResponse(joinId)
         }
+
         // in this case, we have not received enough confirmations of peeers before timing out.
-        if (peersInGroup == null){
+        // or messages were dropped
+        if (peersInGroup == null || !ok.await()){
             scope.launch {
                 updatesChannel.emit(Update.TimeOut(joinId))
             }
@@ -575,7 +632,7 @@ class FrostManager(
     }
 
     private suspend fun waitForJoinResponse(id: Long): List<Peer> {
-        var counter = 0;
+        var counter = 0
         val mutex = Mutex(true)
         val peers = mutableListOf<Peer>()
         var amount: Int?
@@ -593,14 +650,14 @@ class FrostManager(
         return peers
     }
 
-    fun processMsg(pair: Pair<Peer, FrostMessage>) {
+    suspend fun processMsg(pair: Pair<Peer, FrostMessage>) {
         val (peer, msg) = pair
         Log.d("FROST","received msg $msg")
-        map[msg::class]?.let { it(peer, msg) }
+        msgProcessMap[msg::class]?.let { it(peer, msg) }
 
     }
 
-    private fun processRequestToJoin(peer: Peer, msg: RequestToJoinMessage) {
+    private suspend fun processRequestToJoin(peer: Peer, msg: RequestToJoinMessage) {
         when(state){
             FrostState.ReadyForKeyGen, FrostState.ReadyForSign -> {
                 state = FrostState.KeyGen(msg.id)
@@ -628,7 +685,7 @@ class FrostManager(
         }
     }
 
-    private fun sendToParticipants(participantIndices: List<Int>, frostMessage: FrostMessage){
+    private suspend fun sendToParticipants(participantIndices: List<Int>, frostMessage: FrostMessage){
         (participantIndices - (frostInfo?.myIndex ?: error("frostinfo is null. this is a bug.")))
             .forEach{
             networkManager.send(networkManager.getPeerFromMid(frostInfo?.getMidForIndex(it) ?: error("frostinfo null, this is a bug")), frostMessage)
@@ -697,6 +754,7 @@ class FrostManager(
         const val SIGN_TIMEOUT_MILLIS = 10 * 60 * 1000L
         const val KEYGEN_TIMEOUT_MILLIS = 10 * 60 * 1000L
         const val WAIT_FOR_KEYGEN_TIMEOUT_MILLIS = 5 * 60 * 1000L
+        const val WAIT_FOR_INITIAL_PREPROCESS_MILLIS = 5 * 60 * 1000L
         // const val timeout ...
     }
 
