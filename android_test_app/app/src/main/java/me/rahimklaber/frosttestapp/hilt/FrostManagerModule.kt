@@ -38,7 +38,7 @@ object FrostManagerModule {
         val frostCommunity = IPv8Android.getInstance().getOverlay<FrostCommunity>()
             ?: error("FROSTCOMMUNITY should be initialized")
         val frostManager = FrostManager(
-            frostCommunity.getMsgChannel(),
+            frostCommunity.channel,
             db = db,
             networkManager = object : NetworkManager() {
                 override suspend fun send(peer: Peer, msg: FrostMessage): Boolean {
@@ -67,7 +67,6 @@ object FrostManagerModule {
                     }
                     val done = CompletableDeferred<Unit>(null)
                     val cbId = frostCommunity.addOnAck { peer, ack ->
-                        Log.d("FROST","in ack cb")
                         if (ack.hashCode == msg.hashCode()){
                             Log.d("FROST","received ack for $msg")
                             done.complete(Unit)

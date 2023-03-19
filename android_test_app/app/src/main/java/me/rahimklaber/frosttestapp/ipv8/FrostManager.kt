@@ -6,6 +6,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import me.rahimklaber.frosttestapp.SchnorrAgent
 import me.rahimklaber.frosttestapp.SchnorrAgentMessage
 import me.rahimklaber.frosttestapp.SchnorrAgentOutput
@@ -493,10 +494,10 @@ class FrostManager(
             }
         }
         fun fail(){
-            if (isNew){
-                state = FrostState.ReadyForKeyGen
+            state = if (isNew){
+                FrostState.ReadyForKeyGen
             }else{
-                state = FrostState.ReadyForSign
+                FrostState.ReadyForSign
             }
             removeKeyGenCommitmentsCallbacks(commitmentCbId)
             removeKeyGenShareCallback(shareCbId)
@@ -506,31 +507,36 @@ class FrostManager(
             }
             cancel()
         }
+        val semaphoreMaxPermits = midsOfNewGroup.size
+        val sendSemaphore = Semaphore(semaphoreMaxPermits,)
         launch {
             for (agentOutput in agentReceiveChannel) {
 //                Log.d("FROST", "sending $agentOutput")
                 when(agentOutput){
                     is SchnorrAgentOutput.DkgShare -> {
-                       scope.launch {
+//                       scope.launch {
+                            sendSemaphore.acquire()
                            val ok = networkManager.send(
                                networkManager.getPeerFromMid(getMidFromIndex(agentOutput.forIndex)),
                                KeyGenShare(joinId, agentOutput.share)
                            )
+                        sendSemaphore.release()
                            if(!ok){
                                fail()
                            }
-                       }
+//                       }
                     }
                     is SchnorrAgentOutput.KeyCommitment -> {
-                       scope.launch {
+//                       scope.launch {
+                        sendSemaphore.acquire()
                            val ok = networkManager.broadcast(KeyGenCommitments(joinId, agentOutput.commitment))
-                           if(!ok){
+                            sendSemaphore.release()
+                        if(!ok){
                                fail()
-                           }
+//                           }
                        }
                     }
                     is SchnorrAgentOutput.KeyGenDone -> {
-                        state = FrostState.ReadyForSign
                         updatesChannel.emit(Update.KeyGenDone(agentOutput.pubkey.toHex()))
                     }
                     else -> {
@@ -596,6 +602,9 @@ class FrostManager(
             .insert(dbMe)
 
         state = FrostState.ReadyForSign
+        while (sendSemaphore.availablePermits != semaphoreMaxPermits){
+            delay(1000)
+        }
         //cancel when done
         cancel()
     }

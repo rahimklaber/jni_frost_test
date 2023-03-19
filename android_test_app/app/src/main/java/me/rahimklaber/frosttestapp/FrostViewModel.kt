@@ -122,7 +122,7 @@ class FrostViewModel(
             }
             launch {
                 frostCommunity
-                    .getMsgChannel()
+                    .channel
                     .filter {
                         it.second is RequestToJoinMessage || it.second is SignRequest
                     }

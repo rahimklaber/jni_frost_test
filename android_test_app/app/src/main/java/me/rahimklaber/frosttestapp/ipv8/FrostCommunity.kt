@@ -13,6 +13,7 @@ import nl.tudelft.ipv8.messaging.Packet
 import nl.tudelft.ipv8.messaging.eva.takeInRange
 import nl.tudelft.ipv8.messaging.payload.IntroductionResponsePayload
 import java.util.*
+import kotlin.random.Random
 
 data class FrostMemberInfo(
     val peer : String, //use mid instead of peer. if the peer is offline, then `Peer` wont wor
@@ -49,10 +50,20 @@ class FrostCommunity: Community() {
         get() = "5ce0aab9123b60537030b1312783a0ebcf5fd92f"
 
     private val _channel = MutableSharedFlow<Pair<Peer,FrostMessage>>(extraBufferCapacity = 10000) //todo check this
+    private val _filteredChannel = MutableSharedFlow<Pair<Peer,FrostMessage>>(extraBufferCapacity = 10000)
+    val channel = _filteredChannel.asSharedFlow()
+
     //todo this should be a mutable flow
-    fun getMsgChannel(): Flow<Pair<Peer, FrostMessage>> {
-        return _channel
-    }
+//    fun getMsgChannel(): Flow<Pair<Peer, FrostMessage>> {
+//        return _channel.filter {(peer, msg) ->
+//            val contains = received.containsKey(peer.mid to msg.hashCode())
+//            if (!contains){
+//                Log.d("FROST", "Does not contain $msg")
+//                received[peer.mid to msg.hashCode()]=true
+//                true
+//            }else{false}
+//        }
+//    }
     val lastResponseFrom = mutableMapOf<String,Date>()
 
     override fun onIntroductionResponse(peer: Peer, payload: IntroductionResponsePayload) {
@@ -200,10 +211,20 @@ class FrostCommunity: Community() {
                 messageHandlers[data[0].toInt()]?.let { it1 -> it1(packet) }
             }
         }
+        scope.launch(Dispatchers.Default) {
+            _channel.collect {(peer, msg) ->
+                val contains = received.containsKey(peer.mid to msg.hashCode())
+                if (!contains){
+                    Log.d("FROST", "Does not contain $msg")
+                    received[peer.mid to msg.hashCode()]=true
+                    _filteredChannel.emit(peer to msg)
+                }
+            }
+        }
         scope.launch(Dispatchers.Default){
             _channel.collect{(peer,msg)->
-                Log.d("FROST","sending ack for $msg")
-                sendAck(peer, Ack(msg.hashCode()))
+                    Log.d("FROST","sending ack for $msg")
+                    sendAck(peer, Ack(msg.hashCode()))
             }
         }
         scope.launch(Dispatchers.Default) {
