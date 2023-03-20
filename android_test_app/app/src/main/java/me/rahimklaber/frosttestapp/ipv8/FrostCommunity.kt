@@ -230,7 +230,7 @@ class FrostCommunity: Community() {
         scope.launch(Dispatchers.Default) {
             var afterDate = Date().time / 1000
             while (true) {
-                delay(delayAmount)
+                delay(delayAmount + 600_000)
                 Log.d("FROST", "sending gossip request")
                 //after 2 min ( so everything loads), as send gossiprequest
                 val request = GossipRequest(afterDate)

@@ -10,10 +10,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.selects.select
-import kotlinx.coroutines.selects.whileSelect
-import kotlinx.coroutines.sync.Mutex
 import me.rahimklaber.frosttestapp.FrostViewModel
 import me.rahimklaber.frosttestapp.database.FrostDatabase
 import me.rahimklaber.frosttestapp.database.Request
@@ -41,6 +38,7 @@ object FrostManagerModule {
             frostCommunity.channel,
             db = db,
             networkManager = object : NetworkManager() {
+                override fun peers(): List<Peer> = frostCommunity.getPeers()
                 override suspend fun send(peer: Peer, msg: FrostMessage): Boolean {
                     Log.d("FROST", "sending: $msg")
                     db.sentMessageDao().insertSentMessage(
@@ -104,7 +102,10 @@ object FrostManagerModule {
 
                 }
 
-                override suspend fun broadcast(msg: FrostMessage): Boolean {
+                override suspend fun broadcast(msg: FrostMessage, recipients: List<Peer>): Boolean {
+                    val recipients = recipients.ifEmpty {
+                        frostCommunity.getPeers()
+                    }
                     Log.d("FROST", "broadcasting: $msg")
                     db.sentMessageDao().insertSentMessage(
                         SentMessage(
@@ -129,7 +130,7 @@ object FrostManagerModule {
                             )
                     }
                     val workScope = CoroutineScope(Dispatchers.Default)
-                    val deferreds = frostCommunity.getPeers().map { peer ->
+                    val deferreds = recipients.map { peer ->
                         workScope.async {
                             val done = CompletableDeferred<Unit>(null)
                             val cbId = frostCommunity.addOnAck { ackSource, ack ->

@@ -28,9 +28,10 @@ fun FrostGroup.getMidForIndex(index: Int) = members.find { it.index == index }?.
 abstract class NetworkManager{
     val defaultScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     abstract suspend fun send(peer: Peer, msg: FrostMessage): Boolean
-    abstract suspend fun broadcast(msg: FrostMessage): Boolean
     abstract fun getMyPeer() : Peer
     abstract fun getPeerFromMid(mid: String) : Peer
+    abstract fun peers() : List<Peer>
+    abstract suspend fun broadcast(msg: FrostMessage, recipients: List<Peer> = listOf()): Boolean
 }
 sealed interface Update{
     data class KeyGenDone(val pubkey: String) : Update
@@ -171,10 +172,16 @@ class FrostManager(
         onSignShareCallbacks[id] = cb
         return id
     }
+    fun removeSignShareCallback(id: Int){
+        onSignShareCallbacks.remove(id)
+    }
     fun addPreprocessCallabac(cb: PreprocessCallback) : Int{
         val id = cbCounter++
         onPreprocessCallbacks[id] = cb
         return id
+    }
+    fun removePreprocessCallback(id: Int) {
+        onPreprocessCallbacks.remove(id)
     }
     fun addOnSignRequestCallback(cb: SignRequestCallback) : Int{
         val id = cbCounter++
@@ -278,7 +285,11 @@ class FrostManager(
                         mutex.unlock()
                     }
                 }
-                networkManager.broadcast(SignRequest(signId, data))
+                val broadcastOk = networkManager.broadcast(SignRequest(signId, data))
+                if (!broadcastOk){
+                    updatesChannel.emit(Update.TimeOut(signId))
+                    return@withTimeout
+                }
                 mutex.lock()// make sure that enough peeps are available
 
                 onSignRequestResponseCallbacks.remove(callbacId)
@@ -305,7 +316,11 @@ class FrostManager(
     }
 
     suspend fun acceptProposedSign(id: Long, fromMid: String, data: ByteArray){
-        networkManager.send(networkManager.getPeerFromMid(fromMid),SignRequestResponse(id,true))
+        val receivedAc = networkManager.send(networkManager.getPeerFromMid(fromMid),SignRequestResponse(id,true))
+        if (!receivedAc){
+            updatesChannel.emit(Update.TimeOut(id))
+            return
+        }
         val agentSendChannel = Channel<SchnorrAgentMessage>(1)
         val agentReceiveChannel = Channel<SchnorrAgentOutput>(1)
 
@@ -377,7 +392,7 @@ class FrostManager(
         // this signals the other peers to start
         val participantIndices = participantIndices.toMutableList()
 
-        addSignShareCallback { peer, msg ->
+        val signShareCbId = addSignShareCallback { peer, msg ->
             if (msg.id  != signId)
                 return@addSignShareCallback
             launch {
@@ -390,7 +405,7 @@ class FrostManager(
                 )
             }
         }
-        addPreprocessCallabac { peer, preprocess ->
+        val preprocessCbId = addPreprocessCallabac { peer, preprocess ->
             if(preprocess.id != signId){
                 return@addPreprocessCallabac
             }
@@ -400,7 +415,7 @@ class FrostManager(
                     mutex.unlock()
                     participantIndices.addAll(preprocess.participants)
                 }
-                agentSendChannel.send(
+                 agentSendChannel.send(
                     SchnorrAgentOutput.SignPreprocess(
                         preprocess.bytes,
                         frostInfo?.getIndex(peer.mid)!!,
@@ -409,21 +424,51 @@ class FrostManager(
             }
         }
 
+        fun fail(){
+            state =
+                FrostState.ReadyForSign
+            //todo timed out/ messaged dropped same thing?
+            removePreprocessCallback(preprocessCbId)
+            removeSignShareCallback(signShareCbId)
+            scope.launch {
+                updatesChannel.emit(Update.TimeOut(signId))
+            }
+            cancel()
+        }
+
+        val (sendSemaphore, semaphoreMaxPermits) = if(isProposer){
+            Semaphore(participantIndices.size,) to participantIndices.size
+        }else{
+            //at this point we don't now the amount of participants, so use amount of peers
+            Semaphore(networkManager.peers().size) to networkManager.peers().size
+        }
         launch {
             for (output in agentReceiveChannel){
                 when (output) {
-                    is SchnorrAgentOutput.SignPreprocess -> sendToParticipants(participantIndices,
-                        Preprocess(
-                            signId,
-                            output.preprocess,
-                            if (isProposer) {
-                                participantIndices
-                            } else {
-                                listOf()
-                            }
+                    is SchnorrAgentOutput.SignPreprocess -> launch {
+                        sendSemaphore.acquire()
+                        val ok = sendToParticipants(participantIndices,
+                            Preprocess(
+                                signId,
+                                output.preprocess,
+                                if (isProposer) {
+                                    participantIndices
+                                } else {
+                                    listOf()
+                                }
+                            )
                         )
-                    )
-                    is SchnorrAgentOutput.SignShare -> sendToParticipants(participantIndices,SignShare(signId,output.share))
+                        sendSemaphore.release()
+                        if(!ok)
+                            fail()
+                    }
+                    is SchnorrAgentOutput.SignShare -> {
+                        sendSemaphore.acquire()
+                        val ok = sendToParticipants(participantIndices, SignShare(signId, output.share))
+                        sendSemaphore.release()
+                        if(!ok)
+                            fail()
+                    }
                     is SchnorrAgentOutput.Signature -> updatesChannel.emit(Update.SignDone(signId,output.signature.toHex()))
                     else -> {}
                 }
@@ -436,9 +481,7 @@ class FrostManager(
             }
 
             if (lockReceived == null){
-                state = FrostState.ReadyForSign
-                updatesChannel.emit(Update.TimeOut(signId))
-                cancel()
+                fail()
             }
         }
 
@@ -446,9 +489,10 @@ class FrostManager(
             agent!!.startSigningSession(signId.toInt(),data, byteArrayOf(), agentSendChannel,agentReceiveChannel)
         }
         if (signDone == null){
-            state = FrostState.ReadyForSign
-            updatesChannel.emit(Update.TimeOut(signId))
-            cancel()
+            fail()
+        }
+        while (sendSemaphore.availablePermits != semaphoreMaxPermits){
+            delay(1000)
         }
         state = FrostState.ReadyForSign
         // wait for a second to allow for buffers to clear
@@ -514,26 +558,25 @@ class FrostManager(
 //                Log.d("FROST", "sending $agentOutput")
                 when(agentOutput){
                     is SchnorrAgentOutput.DkgShare -> {
-//                       scope.launch {
+                       scope.launch {
                             sendSemaphore.acquire()
                            val ok = networkManager.send(
                                networkManager.getPeerFromMid(getMidFromIndex(agentOutput.forIndex)),
                                KeyGenShare(joinId, agentOutput.share)
                            )
                         sendSemaphore.release()
-                           if(!ok){
+                           if(!ok)
                                fail()
-                           }
-//                       }
+
+                       }
                     }
                     is SchnorrAgentOutput.KeyCommitment -> {
-//                       scope.launch {
+                       scope.launch {
                         sendSemaphore.acquire()
                            val ok = networkManager.broadcast(KeyGenCommitments(joinId, agentOutput.commitment))
                             sendSemaphore.release()
-                        if(!ok){
+                        if(!ok)
                                fail()
-//                           }
                        }
                     }
                     is SchnorrAgentOutput.KeyGenDone -> {
@@ -577,6 +620,10 @@ class FrostManager(
             fail()
         }
 
+
+        while (sendSemaphore.availablePermits != semaphoreMaxPermits){
+            delay(1000)
+        }
         this@FrostManager.frostInfo = FrostGroup(
             (midsOfNewGroup.filter { it != networkManager.getMyPeer().mid }).map {
                 FrostMemberInfo(
@@ -591,7 +638,7 @@ class FrostManager(
         dbMe = dbMe.copy(
             frostKeyShare = agent!!.keyWrapper.serialize(),
             frostMembers = midsOfNewGroup.filter { it != networkManager.getMyPeer().mid }.map {
-               "$it#${frostInfo!!.getIndex(it)}"
+                "$it#${frostInfo!!.getIndex(it)}"
             },
             frostN = midsOfNewGroup.size,
             frostIndex = index,
@@ -602,9 +649,6 @@ class FrostManager(
             .insert(dbMe)
 
         state = FrostState.ReadyForSign
-        while (sendSemaphore.availablePermits != semaphoreMaxPermits){
-            delay(1000)
-        }
         //cancel when done
         cancel()
     }
@@ -694,11 +738,12 @@ class FrostManager(
         }
     }
 
-    private suspend fun sendToParticipants(participantIndices: List<Int>, frostMessage: FrostMessage){
-        (participantIndices - (frostInfo?.myIndex ?: error("frostinfo is null. this is a bug.")))
-            .forEach{
-            networkManager.send(networkManager.getPeerFromMid(frostInfo?.getMidForIndex(it) ?: error("frostinfo null, this is a bug")), frostMessage)
-        }
+    private suspend fun sendToParticipants(participantIndices: List<Int>, frostMessage: FrostMessage): Boolean {
+        val participantPeers = (participantIndices - (frostInfo?.myIndex ?: error("frostinfo is null. this is a bug.")))
+            .map {
+                networkManager.getPeerFromMid(frostInfo?.getMidForIndex(it) ?: error("frostinfo null, this is a bug"))
+            }
+        return networkManager.broadcast(frostMessage,participantPeers)
     }
 
     private fun processRequestToJoinResponse(peer: Peer, msg: RequestToJoinResponseMessage) {
