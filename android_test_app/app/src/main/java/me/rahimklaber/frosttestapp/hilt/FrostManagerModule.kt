@@ -132,9 +132,9 @@ object FrostManagerModule {
                     val deferreds = frostCommunity.getPeers().map { peer ->
                         workScope.async {
                             val done = CompletableDeferred<Unit>(null)
-                            val cbId = frostCommunity.addOnAck { peer, ack ->
+                            val cbId = frostCommunity.addOnAck { ackSource, ack ->
                                 //todo, need to also check the peer when broadcasting
-                                if (ack.hashCode == msg.hashCode()){
+                                if (ack.hashCode == msg.hashCode() && peer.mid == ackSource.mid){
                                     Log.d("FROST","received ack for $msg")
 
                                     done.complete(Unit)
