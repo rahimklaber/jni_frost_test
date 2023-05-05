@@ -1,6 +1,6 @@
-use flapigen::{JavaConfig, LanguageConfig, JavaReachabilityFence};
-use std::{path::Path};
-use rifgen::{Generator, TypeCases, Language};
+use flapigen::{JavaConfig, JavaReachabilityFence, LanguageConfig};
+use rifgen::{Generator, Language, TypeCases};
+use std::path::Path;
 
 fn main() {
     // let source_folder = "src"; //use your projects folder
@@ -13,19 +13,15 @@ fn main() {
     //ANCHOR: config
     let swig_gen = flapigen::Generator::new(LanguageConfig::JavaConfig(
         JavaConfig::new(
-            Path::new("out")
-            .to_path_buf()
-                // .join("src")
-                // .join("main")
-                // .join("java")
-                // .join("net")
-                // .join("akaame")
-                // .join("myapplication")
-                ,
+            Path::new("out").to_path_buf(), // .join("src")
+                                            // .join("main")
+                                            // .join("java")
+                                            // .join("net")
+                                            // .join("akaame")
+                                            // .join("myapplication")
             "generated".into(),
         )
-        .use_reachability_fence(JavaReachabilityFence::Std)
-        // .use_null_annotation_from_package("android.support.annotation".into()),
+        .use_reachability_fence(JavaReachabilityFence::Std), // .use_null_annotation_from_package("android.support.annotation".into()),
     ))
     .rustfmt_bindings(true);
     //ANCHOR_END: config

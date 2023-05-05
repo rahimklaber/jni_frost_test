@@ -84,12 +84,20 @@ foreign_class!(
 );
 
 foreign_class!(
+	class ScriptContainer{
+		self_type ScriptContainer;
+		constructor ScriptContainer::new() -> ScriptContainer;
+		fn ScriptContainer::add_script(& mut self , satoshi_amount: u64 ,script: &[i8]);
+	}
+);
+
+foreign_class!(
 	class SchnorrSignWrapper {
 		self_type SchnorrSignWrapper;
 		constructor SchnorrSignWrapper::new() -> SchnorrSignWrapper;
 		fn SchnorrSignWrapper::new_instance_for_signing(key: &SchnorrKeyWrapper, threshold: u32) -> SchnorrSignWrapper;
 		fn SchnorrSignWrapper::sign_1_preprocess(wrapper: SchnorrSignWrapper) -> SignResult1;
-		fn SchnorrSignWrapper::sign_2_sign_bitcoin(wrapper: SchnorrSignWrapper, params: SignParams2, msg_i8: &[i8], prev_out_script: &[i8]) -> SignResult2;
+		fn SchnorrSignWrapper::sign_2_sign_bitcoin(wrapper: SchnorrSignWrapper, params: SignParams2, msg_i8: &[i8], prev_out_scripts : ScriptContainer) -> SignResult2;
 		fn SchnorrSignWrapper::sign_2_sign_normal(wrapper: SchnorrSignWrapper, params: SignParams2, msg_i8: &[i8]) -> SignResult2;
 		fn SchnorrSignWrapper::sign_3_complete(wrapper: SchnorrSignWrapper, params: SignParams3) -> Vec<i8>;
 	}
