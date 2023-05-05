@@ -14,6 +14,7 @@ use bitcoin_serai::crypto::{make_even, Hram as BitcoinHram};
 use flexible_transcript::{RecommendedTranscript, Transcript};
 // use bitcoin_serai::
 use k256::elliptic_curve::ops::Reduce;
+use k256::elliptic_curve::scalar::FromUintUnchecked;
 use k256::{elliptic_curve::sec1::ToEncodedPoint, Scalar, U256};
 use modular_frost::dkg::encryption::{EncryptedMessage, EncryptionKeyMessage};
 use modular_frost::dkg::{
@@ -207,7 +208,7 @@ impl SchnorrKeyWrapper {
                 .unwrap();
         let tweak = TapTweakHash::from_key_and_tweak(pubkey_obj, None).to_scalar();
         let tweak_parsed =
-            Scalar::from_uint_reduced(U256::from_be_slice(tweak.to_be_bytes().as_slice()));
+            Scalar::from_uint_unchecked(U256::from_be_slice(tweak.to_be_bytes().as_slice()));
         let pub_tweak = tweak_parsed;
         key = key.offset(pub_tweak.clone());
         let test_pub = key.group_key();
@@ -345,7 +346,7 @@ impl SchnorrSignWrapper {
                 .unwrap();
         let tweak = TapTweakHash::from_key_and_tweak(pubkey_obj, None).to_scalar();
         let tweak_parsed =
-            Scalar::from_uint_reduced(U256::from_be_slice(tweak.to_be_bytes().as_slice()));
+            Scalar::from_uint_unchecked(U256::from_be_slice(tweak.to_be_bytes().as_slice()));
         let pub_tweak = tweak_parsed;
         key = key.offset(pub_tweak.clone());
         let test_pub = key.group_key();
